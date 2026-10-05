@@ -1463,7 +1463,14 @@
     });
     ctx.textAlign = 'center';
     if (SB.t % 70 < 48) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText(u > 1 ? '↑ ↓ choose a stage · Enter to begin' : 'Press Enter or tap to begin', W / 2, y0 + STAGES.length * 26 + 30); }
-    ctx.fillStyle = 'rgba(217,210,197,0.55)'; ctx.font = `12px ${MONO}`; ctx.fillText('Headphones recommended · M toggles sound', W / 2, H - 18);
+    ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(217,210,197,0.5)'; ctx.font = `12px ${MONO}`;
+    ctx.fillText('Headphones recommended · M toggles sound', 18, 26);
+    // creator credit
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(233,225,211,0.82)'; ctx.font = `italic 500 17px ${DISPLAY}`;
+    ctx.fillText('Sadbot is a character imagined by Sherwin (mudspit) Martin of ArtXtreme / Mudpixel.', W / 2, H - 34);
+    ctx.fillStyle = 'rgba(232,194,122,0.9)';
+    ctx.fillText('Please support Sherwin\'s efforts to build free stuff for everyone.', W / 2, H - 13);
   }
   function drawIntro() {
     const s = INTRO[Math.min(slide, INTRO.length - 1)], k = slideT / 400;
@@ -1569,7 +1576,9 @@
   }
 
   // ---------------------------------------------------------------- render
+  const donateEl = document.getElementById('donate');
   function render() {
+    if (donateEl) { const show = state === 'title'; if (donateEl.hidden === show) donateEl.hidden = !show; } // donate button only on the title screen
     ctx.setTransform(SB.sx, 0, 0, SB.sy, 0, 0);
     ctx.clearRect(0, 0, W, H);
     switch (state) {
