@@ -1,0 +1,14 @@
+# Local-only files
+old/
+node_modules/
+.env
+.env.*
+*.log
+.DS_Store
+Thumbs.db
+# Never commit secrets: Supabase service-role keys, SMTP passwords, tokens
+*.pem
+*.key
+secrets.*
+RESUME_TOMORROW.md
+DEPLOY_TODO.md

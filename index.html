@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self'; connect-src 'self' https://tbijvhubsshelptazrtp.supabase.co wss://tbijvhubsshelptazrtp.supabase.co; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="description" content="A side-scrolling adventure about Toby, a rusted companion robot crossing a collapsed world to find Kevin.">
+  <meta property="og:title" content="Sadbot's Journey To Bliss">
+  <meta property="og:description" content="Help Toby, a sad little robot, cross a broken world to find his boy.">
+  <meta property="og:image" content="https://sadbot.mudpixel.com/assets/05_highway.webp">
+  <meta name="theme-color" content="#0f0e0d">
+  <title>Sadbot's Journey To Bliss</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Courier+Prime:wght@400;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">Sadbot's Journey <em>To Bliss</em></span>
+    <div class="account" id="account" hidden>
+      <span id="acct-status">Playing as a guest</span>
+      <button id="acct-btn" type="button">Sign in to save progress</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <canvas id="game" width="960" height="540" tabindex="0" aria-label="Sadbot's Journey To Bliss game screen"></canvas>
+    <div class="touch" id="touch">
+      <div class="group">
+        <button data-act="left" type="button" aria-label="Move left">&#9664;</button>
+        <button data-act="right" type="button" aria-label="Move right">&#9654;</button>
+      </div>
+      <div class="group">
+        <button data-act="talk" type="button" aria-label="Talk">TALK</button>
+        <button data-act="pulse" type="button" aria-label="Heart pulse">PULSE</button>
+        <button data-act="jump" type="button" class="big" aria-label="Jump">JUMP</button>
+      </div>
+    </div>
+  </main>
+
+  <div class="legend" aria-label="Controls">
+    <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd> or <kbd>A</kbd> <kbd>D</kbd> walk</span>
+    <span><kbd>Space</kbd> jump (hold for higher)</span>
+    <span><kbd>X</kbd> or <kbd>J</kbd> heart pulse</span>
+    <span><kbd>E</kbd> talk / search</span>
+    <span><kbd>P</kbd> pause</span>
+    <span><kbd>M</kbd> sound on/off</span>
+  </div>
+  <p class="foot">Your email is used only to sign you in and save your progress. <a href="privacy.html">Privacy</a></p>
+
+  <dialog id="signin" aria-labelledby="signin-title">
+    <form id="signin-form" novalidate>
+      <h2 id="signin-title">Save your journey</h2>
+      <p>Enter your email and we'll send you a one-time sign-in link. No password needed. Open the link on this device and browser.</p>
+      <label for="signin-email">Email</label>
+      <input id="signin-email" name="email" type="email" required maxlength="254" autocomplete="email" inputmode="email" spellcheck="false">
+      <div class="row">
+        <button id="signin-cancel" type="button" class="ghost">Cancel</button>
+        <button id="signin-send" type="submit">Send link</button>
+      </div>
+      <p id="signin-msg" role="status" aria-live="polite"></p>
+    </form>
+  </dialog>
+
+  <script src="vendor/supabase.js"></script>
+  <script src="js/core.js"></script>
+  <script src="js/draw.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/stages.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/account.js"></script>
+</body>
+</html>
