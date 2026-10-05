@@ -1,0 +1,6 @@
+# Source material and docs that don't need to be on the public site
+art/
+supabase/
+old/
+*.md
+serve.js

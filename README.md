@@ -25,7 +25,11 @@ Add `#dev` to the URL to unlock every stage for testing.
 | `js/game.js` | Player, enemies, traps, allies, bosses, menus, ending |
 | `js/account.js` | Optional email magic-link sign-in and cloud-saved progress (Supabase) |
 | `supabase/migrations/` | Database schema with row-level security |
+| `vercel.json` | Hosting config: security headers (CSP, HSTS, no framing) and caching |
 | `GAME_DESIGN.md` | Story bible, stage table and systems |
+
+## Hosting
+Deployed on Vercel from the `main` branch; pushing to `main` redeploys.
 
 ## Accounts and security
 - Sign-in is passwordless (email magic link, PKCE flow) via Supabase Auth.
