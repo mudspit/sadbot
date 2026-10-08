@@ -1263,7 +1263,7 @@
     drawBoss();
     for (const a of L.allies) if (a.kind !== 'pip') drawAlly(a);
     // player
-    if (!(P.inv > 0 && SB.t % 6 < 3)) {
+    if (!(P.inv > 0 && SB.t % 6 < 3 && !SB.capture)) {
       SB.drawToby(pcx() - camX, P.y + P.h, P.facing, P.walk, {
         moving: Math.abs(P.vx) > 0.3, air: !P.onGround, pulseReady: P.hasPulse && P.pulseCd <= 0,
         eyeGlow: 0.35 + Math.sin(SB.t * 0.05) * 0.1, tilt: P.onGround ? 0 : P.vy * 0.004 * P.facing,
@@ -1619,6 +1619,7 @@
   let last = performance.now(), acc = 0;
   const STEP = 1000 / 60;
   function frame(now) {
+    if (SB.capture) { last = now; acc = 0; requestAnimationFrame(frame); return; } // stepped manually when recording promo footage
     acc += Math.min(100, now - last); last = now;
     while (acc >= STEP) { update(); acc -= STEP; }
     render();
