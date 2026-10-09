@@ -59,7 +59,7 @@
   const IMG_SRC = {
     wake: 'assets/01_wake.jpg', drawing: 'assets/02_drawing.jpg', city: 'assets/03_city.jpg',
     school: 'assets/04_school.webp', highway: 'assets/05_highway.webp',
-    kevin: 'assets/kevin.jpg', milo: 'assets/milo.jpg',
+    kevin: 'assets/kevin.jpg', milo: 'assets/milo.jpg', logo: 'assets/logo.webp',
   };
   // Retry a couple of times: flaky connections sometimes drop one of several parallel requests.
   const loadImage = (k, src, tries = 0) => new Promise((res) => {

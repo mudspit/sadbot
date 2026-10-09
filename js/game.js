@@ -1445,16 +1445,20 @@
     const g = ctx.createLinearGradient(0, 0, 0, H);
     g.addColorStop(0, 'rgba(8,7,6,0.55)'); g.addColorStop(0.6, 'rgba(8,7,6,0.45)'); g.addColorStop(1, 'rgba(8,7,6,0.92)');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = '#e9e1d3'; ctx.font = `600 28px ${DISPLAY}`; spaced("SADBOT'S JOURNEY", W / 2, 110, 12);
-    ctx.strokeStyle = 'rgba(232,194,122,0.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(W / 2 - 150, 130); ctx.lineTo(W / 2 + 150, 130); ctx.stroke();
-    ctx.save(); ctx.shadowColor = 'rgba(240,190,110,0.6)'; ctx.shadowBlur = 30 + Math.sin(SB.t * 0.05) * 10;
-    ctx.fillStyle = '#f0cf8a'; ctx.font = `italic 600 86px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.fillText('To Bliss', W / 2, 210); ctx.restore();
+    // game logo, floating gently over a soft glow
+    const logo = SB.IMG.logo;
+    const bob = Math.sin(SB.t * 0.03) * 3, lh = 226, lw = logo ? lh * logo.width / logo.height : 0, ly = 22 + bob;
+    const glow = ctx.createRadialGradient(W / 2, 135, 20, W / 2, 135, 230);
+    glow.addColorStop(0, 'rgba(255,214,160,0.30)'); glow.addColorStop(1, 'rgba(255,214,160,0)');
+    ctx.fillStyle = glow; ctx.fillRect(0, 0, W, 300);
+    if (logo) ctx.drawImage(logo, W / 2 - lw / 2, ly, lw, lh);
+    else { ctx.fillStyle = '#f0cf8a'; ctx.font = `italic 600 64px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.fillText("Sadbot's Journey To Bliss", W / 2, 140); }
     // chapter list
     const u = unlocked();
-    const x0 = W / 2 - 170, y0 = 262;
-    ctx.fillStyle = 'rgba(12,11,10,0.6)'; SB.roundRect(x0 - 20, y0 - 26, 380, STAGES.length * 26 + 30, 8); ctx.fill();
+    const x0 = W / 2 - 170, y0 = 290, RH = 22;
+    ctx.fillStyle = 'rgba(12,11,10,0.6)'; SB.roundRect(x0 - 20, y0 - 22, 380, STAGES.length * RH + 24, 8); ctx.fill();
     STAGES.forEach((s, i) => {
-      const y = y0 + i * 26, open = i < u, sel = i === menuSel;
+      const y = y0 + i * RH, open = i < u, sel = i === menuSel;
       ctx.textAlign = 'left'; ctx.font = `${sel ? 700 : 400} 15px ${MONO}`;
       ctx.fillStyle = sel ? '#e8c27a' : open ? '#d9d2c5' : 'rgba(217,210,197,0.3)';
       ctx.fillText(`${sel ? '▸ ' : '  '}${i + 1}  ${open ? s.name : '· · ·'}`, x0, y);
@@ -1462,7 +1466,7 @@
       if (open && best) { ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(217,210,197,0.5)'; ctx.font = `12px ${MONO}`; ctx.fillText(SB.fmtTime(best), x0 + 340, y); }
     });
     ctx.textAlign = 'center';
-    if (SB.t % 70 < 48) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText(u > 1 ? '↑ ↓ choose a stage · Enter to begin' : 'Press Enter or tap to begin', W / 2, y0 + STAGES.length * 26 + 30); }
+    if (SB.t % 70 < 48) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText(u > 1 ? '↑ ↓ choose a stage · Enter to begin' : 'Press Enter or tap to begin', W / 2, y0 + STAGES.length * RH + 24); }
     ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(217,210,197,0.5)'; ctx.font = `12px ${MONO}`;
     ctx.fillText('Headphones recommended · M toggles sound', 18, 26);
     // creator credit

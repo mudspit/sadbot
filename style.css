@@ -28,15 +28,15 @@ body {
 }
 .topbar {
   width: 100%;
-  max-width: min(1280px, calc((100vh - 168px) * 16 / 9));
+  max-width: min(1280px, calc((100vh - 182px) * 16 / 9));
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
 }
-.brand { font-family: var(--display); font-size: 20px; letter-spacing: 0.04em; }
-.brand em { color: var(--gold); }
+.brand { display: block; line-height: 0; }
+.brand img { display: block; height: 44px; width: auto; }
 .account { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; color: var(--muted); min-width: 0; }
 .account span { overflow-wrap: anywhere; }
 button {
@@ -54,7 +54,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--gold); outl
 .stage {
   position: relative;
   width: 100%;
-  max-width: min(1280px, calc((100vh - 168px) * 16 / 9));
+  max-width: min(1280px, calc((100vh - 182px) * 16 / 9));
   aspect-ratio: 16 / 9;
 }
 canvas {
@@ -137,3 +137,7 @@ dialog #signin-msg { margin: 14px 0 0; min-height: 1.5em; color: var(--ink); }
   .touch button { width: 52px; height: 52px; font-size: 11px; }
   .touch button.big { width: 62px; height: 62px; }
 }
+
+.doc { max-width: 640px; margin-inline: auto; line-height: 1.6; }
+.doc-title { font-family: var(--display); font-style: italic; font-weight: 600; font-size: 40px; color: var(--gold); margin: 0 0 8px; }
+.doc a { color: var(--gold); }
