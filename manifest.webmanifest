@@ -1,0 +1,15 @@
+{
+  "name": "Sadbot's Journey To Bliss",
+  "short_name": "Sadbot",
+  "description": "Help Toby, a sad little robot, cross a broken world to find his boy.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0f0e0d",
+  "theme_color": "#0f0e0d",
+  "icons": [
+    { "src": "favicon.png", "sizes": "256x256", "type": "image/png", "purpose": "any" },
+    { "src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

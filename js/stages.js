@@ -41,7 +41,7 @@
           { who: 'TOBY', text: 'Have you seen Kevin? Small human. Red cap. Thirteen years old.' },
           { who: 'ASH', text: 'Seen many small humans run. Few come back. Go east, tin heart. Follow the road the sun climbs out of.' },
           { who: 'ASH', text: 'The rust-birds shoot. The rust-dogs bite. Land on their heads. They hate that. Caw!' },
-          { who: 'HINT', text: 'Walk: ← → or A D.  Jump: Space (hold to jump higher).  Jump on enemies to break them.' },
+          { who: 'HINT', text: 'Walk: ← → or A D.  Jump: Space (hold to jump higher).  Jump on enemies to break them.', touch: 'Walk: slide your thumb on ◀ ▶.  Jump: JUMP (hold to jump higher).  Jump on enemies to break them.' },
         ] },
         { id: 'mara', kind: 'mara', x: 2850, prompt: 'Talk', on: ['pulse', 'heal', 'cp:0'], dialog: [
           { who: 'MARA', text: 'Easy, little machine. I\'ve seen enough of your kind turn mean.' },
@@ -49,7 +49,7 @@
           { who: 'MARA', text: 'Reyes... the boy who drew robots on every wall on this street? He gave me bread once. Bread, in this world.' },
           { who: 'MARA', text: 'When the sirens went, the children ran to Elm Street School. One of those Warden machines circles it now.' },
           { who: 'MARA', text: 'Your chest core is cracked. Hold still... there. That heart of yours can push back now.' },
-          { who: 'HINT', text: 'HEART PULSE unlocked. Press X or J for a shockwave that breaks drones and their shots. The fire saves your progress.' },
+          { who: 'HINT', text: 'HEART PULSE unlocked. Press X or J for a shockwave that breaks drones and their shots. The fire saves your progress.', touch: 'HEART PULSE unlocked. Tap PULSE for a shockwave that breaks drones and their shots. The fire saves your progress.' },
           { who: 'MARA', text: 'Go on. And if you find him, tell him old Mara still owes him bread.' },
         ], repeat: [{ who: 'MARA', text: 'Elm Street School is east, past the old overpass. Keep that heart warm, Toby.' }] },
         { id: 'crow2', kind: 'crow', x: 5348, y: 294, prompt: 'Talk', dialog: [

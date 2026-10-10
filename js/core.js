@@ -18,6 +18,9 @@
     SB.sx = c.width / SB.W; SB.sy = c.height / SB.H;
   };
   window.addEventListener('resize', SB.resize);
+  window.addEventListener('orientationchange', () => setTimeout(SB.resize, 250));
+  document.addEventListener('fullscreenchange', () => setTimeout(SB.resize, 100));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', SB.resize);
   SB.resize();
   // offscreen canvas for cave darkness / lighting
   SB.light = document.createElement('canvas');
@@ -198,18 +201,77 @@
   });
   window.addEventListener('keyup', (e) => { const acts = KEYMAP[e.code]; if (acts) acts.forEach((a) => SB.keys.delete(a)); });
   window.addEventListener('blur', () => SB.keys.clear());
-  SB.canvas.addEventListener('pointerdown', () => { SB.canvas.focus(); SB.pressed.add('confirm'); SB.pressed.add('advance'); SB.pressed.add('tap'); SB.unlockAudio(); });
+  // Pointer on the canvas: remember where (in game coordinates) so menus can be tapped.
+  SB.tapAt = null;
+  SB.canvas.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'touch') SB.setTouch(true);
+    const r = SB.canvas.getBoundingClientRect();
+    SB.tapAt = { x: (e.clientX - r.left) / r.width * SB.W, y: (e.clientY - r.top) / r.height * SB.H };
+    SB.canvas.focus(); SB.pressed.add('confirm'); SB.pressed.add('advance'); SB.pressed.add('tap'); SB.unlockAudio();
+  });
 
+  // ---------------------------------------------------------------- touch
+  // Phones and tablets get on-screen controls, tap prompts and a full-screen landscape layout.
+  SB.touch = false;
+  SB.setTouch = (on) => {
+    if (SB.touch === on) return;
+    SB.touch = on;
+    document.documentElement.classList.toggle('touch-ui', on);
+    setTimeout(SB.resize, 50);
+  };
+  const mq = (q) => window.matchMedia && window.matchMedia(q).matches;
+  SB.setTouch((mq('(any-pointer: coarse)') && !mq('(pointer: fine) and (hover: hover)')) || /[#&]touch/.test(location.hash));
+  window.addEventListener('pointerdown', (e) => { if (e.pointerType === 'touch') SB.setTouch(true); }, true);
+  window.addEventListener('keydown', (e) => { if (!inField(e) && KEYMAP[e.code] && !mq('(any-pointer: coarse)')) SB.setTouch(false); });
+
+  const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (err) { /* pointer already gone */ } };
+  const tapButton = (b, act) => {
+    b.addEventListener('pointerdown', (e) => { e.preventDefault(); SB.press(act); setTimeout(() => SB.keys.delete(act), 60); });
+  };
   const touchEl = document.getElementById('touch');
   if (touchEl) {
-    if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) touchEl.classList.add('on');
-    touchEl.querySelectorAll('button').forEach((b) => {
+    // Movement pad: one surface for both directions, so a thumb can slide between left and right.
+    const pad = touchEl.querySelector('.dpad');
+    if (pad) {
+      const held = new Map();
+      const sync = () => {
+        const dirs = new Set(held.values());
+        ['left', 'right'].forEach((d) => { if (dirs.has(d)) { if (!SB.keys.has(d)) SB.press(d); } else SB.keys.delete(d); });
+        pad.dataset.dir = dirs.size === 1 ? [...dirs][0] : '';
+      };
+      const side = (e) => { const r = pad.getBoundingClientRect(); return e.clientX < r.left + r.width / 2 ? 'left' : 'right'; };
+      pad.addEventListener('pointerdown', (e) => { e.preventDefault(); capture(pad, e); held.set(e.pointerId, side(e)); sync(); });
+      pad.addEventListener('pointermove', (e) => { if (held.has(e.pointerId)) { held.set(e.pointerId, side(e)); sync(); } });
+      const end = (e) => { held.delete(e.pointerId); sync(); };
+      ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((t) => pad.addEventListener(t, end));
+    }
+    touchEl.querySelectorAll('button[data-act]').forEach((b) => {
       const act = b.dataset.act;
-      const up = (e) => { e.preventDefault(); SB.keys.delete(act); };
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (b.setPointerCapture) b.setPointerCapture(e.pointerId); SB.press(act); });
+      if (b.dataset.tap !== undefined) { tapButton(b, act); return; }
+      const up = (e) => { e.preventDefault(); SB.keys.delete(act); b.classList.remove('down'); };
+      b.addEventListener('pointerdown', (e) => { e.preventDefault(); capture(b, e); SB.press(act); b.classList.add('down'); });
       b.addEventListener('pointerup', up);
       b.addEventListener('pointercancel', up);
       b.addEventListener('lostpointercapture', up);
     });
+    touchEl.addEventListener('contextmenu', (e) => e.preventDefault());
   }
+  // Full screen (and landscape lock where the browser allows it).
+  const fsBtn = document.getElementById('fs-btn');
+  const root = document.documentElement;
+  const canFs = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  if (fsBtn) {
+    if (!canFs) fsBtn.hidden = true;
+    fsBtn.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement || document.webkitFullscreenElement) { await (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+        await (root.requestFullscreen || root.webkitRequestFullscreen).call(root, { navigationUI: 'hide' });
+        if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape').catch(() => {});
+      } catch (e) { /* not allowed here; the layout still fits the screen */ }
+      SB.canvas.focus();
+    });
+  }
+  // Portrait phones: suggest turning sideways (can be dismissed).
+  const rot = document.getElementById('rotate');
+  if (rot) rot.querySelector('button').addEventListener('click', () => { rot.classList.add('dismissed'); SB.unlockAudio(); });
 })();

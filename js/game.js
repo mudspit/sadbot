@@ -225,7 +225,7 @@
       const [k, v] = act.split(':');
       if (k === 'ally') { addAlly(v); if (n && n.hideOnEnd) n.hidden = true; banner(`${ALLY_NAMES[v]} joined`, 'Allies fight beside you and can\'t be hurt.', 150); }
       else if (k === 'part') removeAlly(v);
-      else if (k === 'pulse') { P.hasPulse = true; banner('Heart Pulse', 'Press X or J', 160); }
+      else if (k === 'pulse') { P.hasPulse = true; banner('Heart Pulse', TAP() ? 'Tap PULSE' : 'Press X or J', 160); }
       else if (k === 'heal') P.hearts = 3;
       else if (k === 'cp') setCheckpoint(L.checkpoints[+v]);
       else if (k === 'clear') stageClear();
@@ -233,6 +233,7 @@
     }
   }
   function openDialog(lines, onEnd) {
+    if (SB.touch) lines = lines.map((l) => (l.touch ? { ...l, text: l.touch } : l));
     dialog = { lines, i: 0, chars: 0, onEnd };
     lineStart(lines[0]);
   }
@@ -254,6 +255,14 @@
         const u = unlocked();
         if (pr.has('up')) menuSel = (menuSel + u - 1) % u;
         if (pr.has('down')) menuSel = (menuSel + 1) % u;
+        // tapping a stage row selects it; tapping the selected row (or anywhere else) starts it
+        if (pr.has('tap') && SB.tapAt) {
+          const row = Math.floor((SB.tapAt.y - (MENU.y0 - MENU.rh + 6)) / MENU.rh);
+          if (Math.abs(SB.tapAt.x - W / 2) < 190 && row >= 0 && row < STAGES.length) {
+            if (row >= u) pr.delete('confirm');
+            else if (row !== menuSel) { menuSel = row; pr.delete('confirm'); SFX.blip(); }
+          }
+        }
         if (pr.has('confirm') || (pr.has('jump') && !pr.has('up'))) {
           if (menuSel === 0) { state = 'intro'; slide = 0; slideT = 0; SB.playVO(INTRO[0].vo); }
           else startStage(menuSel);
@@ -274,6 +283,7 @@
         if ((overlayT > 30 && pr.has('advance')) || overlayT > 420) { state = 'play'; banner(`Stage ${stageIdx + 1} · ${L.def.name}`, L.def.card[1], 200); }
         break;
       case 'play':
+        if (pr.has('tap') && nearNPC && !dialog) pr.add('talk');
         if (dialog) updateDialog();
         else if (pr.has('pause')) state = 'paused';
         else updateWorld();
@@ -1366,11 +1376,11 @@
       ctx.fillStyle = '#e9e1d3'; ctx.font = `700 11px ${MONO}`; ctx.fillText(ALLY_NAMES[a.kind], x + 20, y + 14);
     });
     ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(233,225,211,0.75)'; ctx.font = `600 italic 18px ${DISPLAY}`;
-    ctx.fillText(`Stage ${stageIdx + 1} · ${L.def.name}`, W - 22, 32);
+    if (!TAP()) ctx.fillText(`Stage ${stageIdx + 1} · ${L.def.name}`, W - 22, 32);
     if (L.weather.gust > 0.15) {
       const dir = L.weather.def.wind.dir;
       ctx.fillStyle = `rgba(233,225,211,${0.4 + L.weather.gust * 0.5})`; ctx.font = `700 13px ${MONO}`;
-      ctx.fillText(`${dir < 0 ? '◀◀ ' : ''}GUST${dir > 0 ? ' ▶▶' : ''}`, W - 22, 54);
+      ctx.fillText(`${dir < 0 ? '◀◀ ' : ''}GUST${dir > 0 ? ' ▶▶' : ''}`, W - 22, TAP() ? 92 : 54);
     }
     if (L.chase && L.chase.active && SB.t % 30 < 20) { ctx.textAlign = 'center'; ctx.fillStyle = '#ff7a5c'; ctx.font = `700 18px ${MONO}`; ctx.fillText('RUN!', W / 2, 80); }
     const B = L.boss;
@@ -1384,7 +1394,7 @@
       const n = nearNPC, x = n.x - camX, baseY = n.kind === 'crow' ? n.y - 40 : n.kind === 'elephant' ? n.y - 130 : n.y - 100;
       const y = baseY + Math.sin(SB.t * 0.1) * 2;
       ctx.textAlign = 'center'; ctx.font = `700 13px ${MONO}`;
-      const label = `E · ${n.prompt}`, w = ctx.measureText(label).width + 16;
+      const label = `${TAP() ? 'Tap' : 'E'} · ${n.prompt}`, w = ctx.measureText(label).width + 16;
       ctx.fillStyle = 'rgba(15,14,13,0.8)'; SB.roundRect(x - w / 2, y - 16, w, 22, 4); ctx.fill();
       ctx.fillStyle = '#e8c27a'; ctx.fillText(label, x, y);
     }
@@ -1422,7 +1432,7 @@
     const shown = line.text.slice(0, Math.floor(dialog.chars));
     let count = 0, y = by + 58;
     for (const l of wrap(line.text, bw - 48)) { ctx.fillText(shown.slice(count, count + l.length), bx + 22, y); count += l.length + 1; y += 26; }
-    if (dialog.chars >= line.text.length && SB.t % 40 < 26) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 12px ${MONO}`; ctx.textAlign = 'right'; ctx.fillText('Space / E ▸', bx + bw - 18, by + bh - 14); }
+    if (dialog.chars >= line.text.length && SB.t % 40 < 26) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 12px ${MONO}`; ctx.textAlign = 'right'; ctx.fillText(TAP() ? 'tap ▸' : 'Space / E ▸', bx + bw - 18, by + bh - 14); }
     ctx.restore();
   }
   function coverImage(img, zoom = 1, ox = 0, oy = 0, alpha = 1) {
@@ -1440,6 +1450,8 @@
     { img: 'city', vo: 1, lines: ['Thirteen years later, the minds his parents built were turned loose.', 'The world went quiet. There are no governments now. Only survivors.'] },
     { img: 'wake', vo: 0, lines: ['Unit SM-3-15... online.', 'Somewhere out there, Kevin is waiting.'] },
   ];
+  const MENU = { y0: 290, rh: 22 };
+  const TAP = () => SB.touch;
   function drawTitle() {
     coverImage(SB.IMG.highway, 1.08 + Math.sin(SB.t * 0.003) * 0.03, 0, -10);
     const g = ctx.createLinearGradient(0, 0, 0, H);
@@ -1455,7 +1467,7 @@
     else { ctx.fillStyle = '#f0cf8a'; ctx.font = `italic 600 64px ${DISPLAY}`; ctx.textAlign = 'center'; ctx.fillText("Sadbot's Journey To Bliss", W / 2, 140); }
     // chapter list
     const u = unlocked();
-    const x0 = W / 2 - 170, y0 = 290, RH = 22;
+    const x0 = W / 2 - 170, y0 = MENU.y0, RH = MENU.rh;
     ctx.fillStyle = 'rgba(12,11,10,0.6)'; SB.roundRect(x0 - 20, y0 - 22, 380, STAGES.length * RH + 24, 8); ctx.fill();
     STAGES.forEach((s, i) => {
       const y = y0 + i * RH, open = i < u, sel = i === menuSel;
@@ -1466,9 +1478,8 @@
       if (open && best) { ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(217,210,197,0.5)'; ctx.font = `12px ${MONO}`; ctx.fillText(SB.fmtTime(best), x0 + 340, y); }
     });
     ctx.textAlign = 'center';
-    if (SB.t % 70 < 48) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText(u > 1 ? '↑ ↓ choose a stage · Enter to begin' : 'Press Enter or tap to begin', W / 2, y0 + STAGES.length * RH + 24); }
-    ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(217,210,197,0.5)'; ctx.font = `12px ${MONO}`;
-    ctx.fillText('Headphones recommended · M toggles sound', 18, 26);
+    if (SB.t % 70 < 48) { ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText(TAP() ? (u > 1 ? 'Tap a stage, then tap again to begin' : 'Tap to begin') : (u > 1 ? '↑ ↓ choose a stage · Enter to begin' : 'Press Enter or tap to begin'), W / 2, y0 + STAGES.length * RH + 24); }
+    if (!TAP()) { ctx.textAlign = 'left'; ctx.fillStyle = 'rgba(217,210,197,0.5)'; ctx.font = `12px ${MONO}`; ctx.fillText('Headphones recommended · M toggles sound', 18, 26); }
     // creator credit
     ctx.textAlign = 'center';
     ctx.fillStyle = 'rgba(233,225,211,0.82)'; ctx.font = `italic 500 17px ${DISPLAY}`;
@@ -1485,7 +1496,7 @@
     ctx.textAlign = 'center';
     s.lines.forEach((tx, i) => { ctx.globalAlpha = clamp((slideT - 20 - i * 70) / 40, 0, 1); ctx.fillStyle = i === 0 ? '#e9e1d3' : '#e8c27a'; ctx.font = `italic 500 30px ${DISPLAY}`; ctx.fillText(tx, W / 2, H - 92 + i * 38); });
     ctx.globalAlpha = 1;
-    ctx.fillStyle = 'rgba(217,210,197,0.55)'; ctx.font = `12px ${MONO}`; ctx.textAlign = 'right'; ctx.fillText('Space ▸ next    Esc ▸ skip', W - 20, 28);
+    ctx.fillStyle = 'rgba(217,210,197,0.55)'; ctx.font = `12px ${MONO}`; ctx.textAlign = 'right'; ctx.fillText(TAP() ? 'tap ▸ next' : 'Space ▸ next    Esc ▸ skip', W - 20, 28);
     ctx.textAlign = 'left'; ctx.fillText(`${slide + 1} / ${INTRO.length}`, 20, 28);
   }
   function drawCard() {
@@ -1498,7 +1509,7 @@
     ctx.font = `italic 500 26px ${DISPLAY}`;
     L.def.card.forEach((ln, i) => { ctx.globalAlpha = clamp((overlayT - 40 - i * 40) / 40, 0, 1); ctx.fillStyle = i ? '#e8c27a' : '#e9e1d3'; ctx.fillText(ln, W / 2, 310 + i * 36); });
     ctx.globalAlpha = clamp((overlayT - 120) / 30, 0, 1) * (SB.t % 70 < 48 ? 1 : 0.4);
-    ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText('Press Enter', W / 2, 430);
+    ctx.fillStyle = '#e8c27a'; ctx.font = `700 15px ${MONO}`; ctx.fillText(TAP() ? 'Tap to start' : 'Press Enter', W / 2, 430);
     ctx.globalAlpha = 1;
   }
   function drawOverlay(title, sub, lines, img) {
@@ -1582,6 +1593,7 @@
   // ---------------------------------------------------------------- render
   const donateEl = document.getElementById('donate');
   function render() {
+    syncPage();
     if (donateEl) { const show = state === 'title'; if (donateEl.hidden === show) donateEl.hidden = !show; } // donate button only on the title screen
     ctx.setTransform(SB.sx, 0, 0, SB.sy, 0, 0);
     ctx.clearRect(0, 0, W, H);
@@ -1601,20 +1613,24 @@
     ctx.save(); ctx.translate(shx, shy); drawWorld(); ctx.restore();
     drawHUD(); drawBanner(); drawDialog();
     if (state === 'paused') {
-      drawOverlay('Paused', 'P or Enter to continue', [
+      drawOverlay('Paused', TAP() ? 'Tap to continue' : 'P or Enter to continue', TAP() ? [
+        { t: 'Slide your thumb on ◀ ▶ to walk     JUMP (hold for higher)' },
+        { t: 'PULSE  heart shockwave     TALK or tap a person to talk' },
+        { t: `Gears ${L.stats.gears}   ·   Memories ${L.stats.memories}/3   ·   ${SB.fmtTime(L.stats.time)}`, c: '#e8c27a' },
+      ] : [
         { t: '← → / A D  walk     Space  jump     X / J  heart pulse' },
         { t: 'E  talk / search     M  sound on/off' },
         { t: `Gears ${L.stats.gears}   ·   Memories ${L.stats.memories}/3   ·   ${SB.fmtTime(L.stats.time)}`, c: '#e8c27a' },
       ]);
     } else if (state === 'gameover') {
-      drawOverlay('Low power', 'Toby\'s cells are empty.', [{ t: `Press Enter to reboot at ${L.checkpoint.label}.` }, { t: 'Kevin is still out there.', c: '#e8c27a' }]);
+      drawOverlay('Low power', 'Toby\'s cells are empty.', [{ t: `${TAP() ? 'Tap' : 'Press Enter'} to reboot at ${L.checkpoint.label}.` }, { t: 'Kevin is still out there.', c: '#e8c27a' }]);
     } else if (state === 'clear') {
       const s = L.stats, next = STAGES[stageIdx + 1];
       drawOverlay(`Stage ${stageIdx + 1} complete`, `${L.def.name.toUpperCase()} · ${L.def.clearLine}`, [
         { t: `Time ${SB.fmtTime(s.time)}     Gears ${s.gears}     Memories ${s.memories}/3` },
         { t: `Machines and beasts stopped ${s.enemies}     Times hurt ${s.hits}` },
         { t: next ? `Next: Stage ${stageIdx + 2} · ${next.name}` : '', c: '#e8c27a' },
-        { t: 'Press Enter to continue', c: 'rgba(217,210,197,0.7)' },
+        { t: TAP() ? 'Tap to continue' : 'Press Enter to continue', c: 'rgba(217,210,197,0.7)' },
       ], stageIdx === 0 ? SB.IMG.school : null);
     }
   }
@@ -1622,6 +1638,15 @@
   // ---------------------------------------------------------------- loop
   let last = performance.now(), acc = 0;
   const STEP = 1000 / 60;
+  let shownState = '', shownNear = false;
+  function syncPage() {
+    if (state !== shownState) { shownState = state; document.documentElement.dataset.state = state; }
+    const near = !!(nearNPC && !dialog && state === 'play');
+    if (near !== shownNear) { shownNear = near; if (near) document.documentElement.dataset.near = ''; else delete document.documentElement.dataset.near; }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { SB.keys.clear(); if (state === 'play' && !dialog) state = 'paused'; }
+  });
   function frame(now) {
     if (SB.capture) { last = now; acc = 0; requestAnimationFrame(frame); return; } // stepped manually when recording promo footage
     acc += Math.min(100, now - last); last = now;

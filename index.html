@@ -16,6 +16,11 @@
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://sadbot.mudpixel.com/assets/og.jpg">
   <meta name="theme-color" content="#0f0e0d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Sadbot">
+  <link rel="manifest" href="manifest.webmanifest">
   <title>Sadbot's Journey To Bliss</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="icon" href="favicon.png" type="image/png" sizes="256x256">
@@ -40,15 +45,26 @@
        href="https://www.paypal.com/donate/?business=mudspit%40gmail.com&amp;no_recurring=0&amp;item_name=Support+Sadbot%27s+Journey+To+Bliss&amp;currency_code=USD"
        target="_blank" rel="noopener noreferrer">&#9829; Donate with PayPal</a>
     <div class="touch" id="touch">
-      <div class="group">
-        <button data-act="left" type="button" aria-label="Move left">&#9664;</button>
-        <button data-act="right" type="button" aria-label="Move right">&#9654;</button>
+      <div class="touch-top">
+        <button data-act="pause" data-tap type="button" class="small play-only" aria-label="Pause">&#10074;&#10074;</button>
+        <button data-act="mute" data-tap type="button" class="small" aria-label="Sound on or off">&#9835;</button>
+        <button id="fs-btn" type="button" class="small" aria-label="Full screen">&#x26F6;</button>
       </div>
-      <div class="group">
-        <button data-act="talk" type="button" aria-label="Talk">TALK</button>
-        <button data-act="pulse" type="button" aria-label="Heart pulse">PULSE</button>
-        <button data-act="jump" type="button" class="big" aria-label="Jump">JUMP</button>
+      <div class="pad-row play-only">
+        <div class="dpad" role="group" aria-label="Move left or right">
+          <span class="half l" aria-hidden="true">&#9664;</span><span class="half r" aria-hidden="true">&#9654;</span>
+        </div>
+        <div class="group">
+          <button data-act="talk" type="button" class="talk" aria-label="Talk or search">TALK</button>
+          <button data-act="pulse" type="button" aria-label="Heart pulse">PULSE</button>
+          <button data-act="jump" type="button" class="big" aria-label="Jump">JUMP</button>
+        </div>
       </div>
+    </div>
+    <div class="rotate" id="rotate">
+      <div class="phone" aria-hidden="true"></div>
+      <p>Turn your phone sideways to play</p>
+      <button type="button">Play upright anyway</button>
     </div>
   </main>
 
