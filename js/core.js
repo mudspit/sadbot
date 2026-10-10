@@ -271,6 +271,20 @@
       SB.canvas.focus();
     });
   }
+  // iPad / iPhone Safari zooms on a quick double tap or a pinch, even on game buttons.
+  // Block both on the game screen and its controls (the rest of the page can still be zoomed).
+  const inGame = (t) => t && t.closest && t.closest('.stage, .touch');
+  const isControl = (t) => t && t.closest && t.closest('canvas, .dpad, button[data-act]');
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (isControl(e.target) || (inGame(e.target) && now - lastTouchEnd < 350)) e.preventDefault();
+    lastTouchEnd = now;
+  }, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1 && inGame(e.target)) e.preventDefault(); }, { passive: false });
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach((t) => document.addEventListener(t, (e) => { if (inGame(e.target) || SB.touch) e.preventDefault(); }, { passive: false }));
+  document.addEventListener('dblclick', (e) => { if (inGame(e.target)) e.preventDefault(); }, { passive: false });
+
   // Portrait phones: suggest turning sideways (can be dismissed).
   const rot = document.getElementById('rotate');
   if (rot) rot.querySelector('button').addEventListener('click', () => { rot.classList.add('dismissed'); SB.unlockAudio(); });

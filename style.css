@@ -126,7 +126,9 @@ dialog #signin-msg { margin: 14px 0 0; min-height: 1.5em; color: var(--ink); }
    Landscape: the game fills the screen and the controls sit in the corners.
    Portrait: the controls sit under the game like a handheld console. */
 .touch, .rotate { display: none; }
-html.touch-ui { -webkit-tap-highlight-color: transparent; }
+html.touch-ui { -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html.touch-ui body, html.touch-ui .touch, html.touch-ui .pad-row, html.touch-ui .touch-top { touch-action: manipulation; }
+html.touch-ui canvas, html.touch-ui .stage canvas { touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
 html.touch-ui body { overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
 html.touch-ui .legend { display: none; }
 html.touch-ui .touch { display: block; }
