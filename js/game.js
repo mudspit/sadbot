@@ -17,7 +17,7 @@
   SB.t = 0;
   const unlocked = () => (DEV ? STAGES.length : clamp(parseInt(SB.store('sadbot.unlocked') || '1', 10) || 1, 1, STAGES.length));
 
-  const P = { x: 140, y: GY - 76, w: 30, h: 76, vx: 0, vy: 0, onGround: false, standOn: null, facing: 1, coyote: 0, jumpBuf: 0, inv: 0, pulseCd: 0, hasPulse: false, hearts: 3, walk: 0, root: 0, sink: 0, inQuick: false, safe: { x: 140, y: GY - 76 } };
+  const P = { x: 140, y: GY - 76, w: 30, h: 76, vx: 0, vy: 0, onGround: false, standOn: null, facing: 1, coyote: 0, jumpBuf: 0, inv: 0, pulseCd: 0, hasPulse: false, hearts: 3, walk: 0, root: 0, sink: 0, inQuick: false, jumpHold: 0, safe: { x: 140, y: GY - 76 } };
   const pcx = () => P.x + P.w / 2;
 
   function banner(title, sub = '', dur = 170) { bannerObj = { title, sub, t: 0, dur }; }
@@ -390,10 +390,14 @@
     if (P.onGround) P.coyote = 7; else if (P.coyote > 0) P.coyote--;
     if (P.jumpBuf > 0 && P.coyote > 0 && P.root <= 0) {
       P.vy = P.inQuick ? -8.2 : -11.2; P.coyote = 0; P.jumpBuf = 0; P.onGround = false; P.standOn = null; SFX.jump();
+      P.jumpHold = P.inQuick ? 0 : 13; // frames of extra lift while the jump button stays held
       dust(pcx(), P.y + P.h, 6);
     }
-    if (!SB.keys.has('jump') && P.vy < -4) P.vy = -4;
-    P.vy = Math.min(P.vy + 0.55, 13);
+    // Variable jump: a tap gives a short hop, holding jump floats Toby up to about 1.7x higher.
+    if (!SB.keys.has('jump')) { P.jumpHold = 0; if (P.vy < -4) P.vy = -4; }
+    const lift = P.jumpHold > 0 && P.vy < 0;
+    if (P.jumpHold > 0) P.jumpHold--;
+    P.vy = Math.min(P.vy + (lift ? 0.18 : 0.55), 13);
 
     // horizontal
     P.x += P.vx + L.weather.wind * (P.onGround ? 0.85 : 1.2);
