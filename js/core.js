@@ -140,6 +140,8 @@
     bark: () => { tone(520, 360, 0.08, 'square', 0.05); tone(520, 340, 0.08, 'square', 0.05, 0.13); },
     thunder: () => { noise(2.2, 0.28, 260, 0.1); noise(0.4, 0.2, 1200); },
     splash: () => noise(0.45, 0.16, 1700),
+    toss: () => { noise(0.1, 0.06, 2600); tone(300, 600, 0.08, 'triangle', 0.03); },
+    pop: () => { noise(0.25, 0.3, 3000); tone(900, 200, 0.12, 'square', 0.05); },
     beep: () => tone(1500, 1500, 0.05, 'square', 0.035),
     throw: () => tone(380, 720, 0.12, 'triangle', 0.04),
     sling: () => tone(950, 480, 0.08, 'triangle', 0.045),
@@ -179,7 +181,7 @@
     ArrowLeft: ['left'], KeyA: ['left'], ArrowRight: ['right'], KeyD: ['right'],
     ArrowUp: ['jump', 'up'], KeyW: ['jump', 'up'], Space: ['jump'], KeyZ: ['jump'],
     ArrowDown: ['down'], KeyS: ['down'],
-    KeyX: ['pulse'], KeyJ: ['pulse'], KeyE: ['talk'], Enter: ['confirm'],
+    KeyX: ['pulse'], KeyJ: ['pulse'], KeyF: ['throw'], KeyK: ['throw'], KeyC: ['throw'], KeyE: ['talk'], Enter: ['confirm'],
     Escape: ['pause', 'skip'], KeyP: ['pause'], KeyM: ['mute'],
   };
   SB.press = (a) => {

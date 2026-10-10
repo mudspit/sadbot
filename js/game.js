@@ -17,7 +17,7 @@
   SB.t = 0;
   const unlocked = () => (DEV ? STAGES.length : clamp(parseInt(SB.store('sadbot.unlocked') || '1', 10) || 1, 1, STAGES.length));
 
-  const P = { x: 140, y: GY - 76, w: 30, h: 76, vx: 0, vy: 0, onGround: false, standOn: null, facing: 1, coyote: 0, jumpBuf: 0, inv: 0, pulseCd: 0, hasPulse: false, hearts: 3, walk: 0, root: 0, sink: 0, inQuick: false, jumpHold: 0, safe: { x: 140, y: GY - 76 } };
+  const P = { x: 140, y: GY - 76, w: 30, h: 76, vx: 0, vy: 0, onGround: false, standOn: null, facing: 1, coyote: 0, jumpBuf: 0, inv: 0, pulseCd: 0, hasPulse: false, hearts: 3, walk: 0, root: 0, sink: 0, inQuick: false, jumpHold: 0, items: 0, throwCd: 0, throwT: 0, safe: { x: 140, y: GY - 76 } };
   const pcx = () => P.x + P.w / 2;
 
   function banner(title, sub = '', dur = 170) { bannerObj = { title, sub, t: 0, dur }; }
@@ -85,14 +85,206 @@
     Lv.checkpoints = (d.checkpoints || []).map(([x, label, kind, needs]) => ({ x, label, kind, needs, lit: false }));
     Lv.lamps = (d.lamps || []).map(([x, flicker]) => ({ x, flicker: !!flicker }));
     Lv.boss = makeBoss(d.boss, Lv);
+    placeItemPiles(Lv);
     Lv.chase = d.chase ? { ...d.chase, active: false, front: 0, done: false, cd: 0 } : null;
-    Object.assign(Lv, { bullets: [], bombs: [], shots: [], rocks: [], particles: [], rings: [], flashes: [], waves: [], strikes: [], boulders: [], allies: [] });
+    Object.assign(Lv, { thrown: [], flares: [], bullets: [], bombs: [], shots: [], rocks: [], particles: [], rings: [], flashes: [], waves: [], strikes: [], boulders: [], allies: [] });
     Lv.checkpoint = { x: 140, label: 'the road' };
     Lv.stats = { gears: 0, memories: 0, hits: 0, time: 0, enemies: 0 };
     Lv.arena = false; Lv.gateOpen = 0; Lv.strikeCd = 200;
     Lv.weather = SB.World.makeWeather(d.weather || { type: 'none' });
     SB.World.prepare(Lv);
     return Lv;
+  }
+
+  // ---------------------------------------------------------------- throwable items (one kind per stage)
+  // Toby picks items up from glowing piles (they refill) and throws them with F / K / C or the THROW button.
+  // Throws auto-aim at the nearest enemy, boss or trap ahead. Every item also sets off barrels and mines,
+  // snaps bear traps shut, trips wires and knocks icicles down from a safe distance.
+  const ITEMS = {
+    ashfield: { kind: 'brick', name: 'Bricks', hint: 'Throw them at drones, dogs and barrels.', dmg: 1 },
+    highway: { kind: 'wrench', name: 'Spinning wrenches', hint: 'They fly flat and hit two enemies in a row.', dmg: 1, pierce: 2, fast: true },
+    tunnels: { kind: 'flare', name: 'Road flares', hint: 'They light up the dark and scare rats and dogs away.', dmg: 1 },
+    desert: { kind: 'bomb', name: 'Scrap bombs', hint: 'They blow up on impact. Great on mines and scavengers.', dmg: 2, boom: 72 },
+    forest: { kind: 'cracker', name: 'Firecrackers', hint: 'The bang stuns wolves and snaps bear traps shut.', dmg: 1, bang: 130 },
+    spine: { kind: 'snowball', name: 'Snowballs', hint: 'They freeze enemies and knock icicles down.', dmg: 1, freeze: 220 },
+    helix: { kind: 'emp', name: 'EMP discs', hint: 'They short out machines and switch lasers off.', dmg: 2, emp: 120 },
+  };
+  const ITEM_MAX = 6, ITEM_G = 0.35;
+  const stageItem = () => ITEMS[L.def.id] || ITEMS.ashfield;
+  function placeItemPiles(Lv) {
+    const spots = [320, ...Lv.checkpoints.map((c) => c.x + 80)];
+    for (let x = 1300; x < Lv.worldW - 400; x += 1150) spots.push(x);
+    const ok = (x) => Lv.gyAt(x) !== null && !Lv.traps.some((t) => Math.abs((t.x ?? 0) - x) < 90)
+      && !Lv.water.some((w) => x > w.x0 - 40 && x < w.x1 + 40) && !Lv.npcs.some((n) => Math.abs(n.x - x) < 60);
+    const used = [];
+    for (const s of spots.sort((a, b) => a - b)) {
+      let x = s;
+      for (let k = 0; k < 8 && !ok(x); k++) x += 45;
+      if (!ok(x) || used.some((u) => Math.abs(u - x) < 300)) continue;
+      used.push(x);
+      Lv.pickups.push({ type: 'item', x, y: Lv.gyAt(x) - 18, n: 3 });
+    }
+  }
+  function itemTarget() {
+    const cx = pcx(), cy = P.y + P.h * 0.4, ahead = (x) => (x - cx) * P.facing > 15 && Math.abs(x - cx) < 470;
+    let best = null, bd = 1e9;
+    const consider = (x, y, pri, e) => { if (!ahead(x)) return; const d = Math.hypot(x - cx, (y - cy) * 0.7) + pri; if (d < bd) { bd = d; best = { x, y, e }; } };
+    for (const e of L.enemies) if (!e.dead) consider(e.x + e.w / 2, e.y + e.h / 2, 0, e);
+    const B = L.boss;
+    if (B && !B.dead && L.arena && B.state !== 'idle') { const c = bossCenter(B); consider(c.x, c.y, 0); }
+    for (const tr of L.traps) {
+      if (tr.done) continue;
+      if (tr.type === 'barrel') consider(tr.x, tr.y - 16, 60);
+      else if (tr.type === 'mine' && tr.revealed) consider(tr.x, tr.y - 4, 60);
+      else if (tr.type === 'bear' && tr.closed <= 0) consider(tr.x, tr.y - 4, 80);
+      else if (tr.type === 'trip' && !tr.fired) consider(tr.x + tr.w / 2, tr.y - 6, 80);
+      else if (tr.type === 'ice' && tr.state === 'hang') consider(tr.x, tr.ceil + 22, 90);
+      else if (tr.type === 'cable' && tr.laser && stageItem().emp && !(tr.offT > 0)) consider(tr.x + tr.w / 2, (L.gyAt(tr.x) ?? GY) - 80, 90);
+    }
+    return best;
+  }
+  function throwItem() {
+    const it = stageItem();
+    if (P.items <= 0) { if (P.throwCd <= 0) { banner(`No ${it.name.toLowerCase()} left`, 'Find a glowing pile to pick up more.', 90); P.throwCd = 40; } return; }
+    if (P.throwCd > 0) return;
+    P.items--; P.throwCd = 16;
+    const sx = pcx() + P.facing * 14, sy = P.y + 22, g = it.fast ? ITEM_G * 0.35 : ITEM_G;
+    let vx, vy;
+    const t = itemTarget();
+    if (t) {
+      // lead moving enemies: aim where they will be when the item arrives
+      let tx = t.x, ty = t.y, T = 10;
+      for (let k = 0; k < 3; k++) {
+        T = clamp(Math.abs(tx - sx) / (it.fast ? 11 : 8), 10, 46);
+        if (t.e && t.e.mvx !== undefined && !(t.e.stun > 0)) { tx = t.x + t.e.mvx * T; ty = t.y + t.e.mvy * T; }
+      }
+      vx = (tx - sx) / T; vy = (ty - sy - 0.5 * g * T * T) / T;
+    } else { vx = P.facing * (it.fast ? 10 : 7.5) + P.vx * 0.3; vy = it.fast ? -2.5 : -6.5; }
+    L.thrown.push({ kind: it.kind, x: sx, y: sy, vx, vy, g, rot: 0, life: 150, pierce: it.pierce || 1, hitList: [] });
+    SFX.toss(); P.throwT = 10;
+  }
+  function trapsNear(x, y, r) {
+    const it = stageItem();
+    for (const tr of L.traps) {
+      if (tr.done) continue;
+      const d = Math.hypot(tr.x - x, (tr.y ?? y) - y);
+      if (tr.type === 'barrel' && Math.hypot(tr.x - x, tr.y - 16 - y) < r + 16) { if (!tr.fuse) tr.fuse = 6; }
+      else if (tr.type === 'mine' && d < r + 18 && !tr.timer) { tr.timer = 8; tr.revealed = true; }
+      else if (tr.type === 'bear' && d < r + 18 && tr.closed <= 0) { tr.closed = 1e9; SFX.snap(); spark(tr.x, tr.y - 6, '#d9d2c5', 6); }
+      else if (tr.type === 'trip' && !tr.fired && x > tr.x - r - 6 && x < tr.x + tr.w + r + 6 && Math.abs(tr.y - y) < r + 20) { tr.fired = true; tr.timer = 16; SFX.beep(); }
+      else if (tr.type === 'ice' && tr.state === 'hang' && Math.abs(tr.x - x) < r + 16 && Math.abs(tr.ceil + 24 - y) < r + 30) { tr.state = 'fall'; tr.y = tr.ceil; tr.vy = 0; }
+      else if (tr.type === 'cable' && tr.laser && it.emp && x > tr.x - r && x < tr.x + tr.w + r) { tr.offT = 420; spark(tr.x + tr.w / 2, y, '#ff6a7a', 10); }
+    }
+  }
+  function itemImpact(o, x, y, onEnemy) {
+    const it = stageItem();
+    if (it.boom) { explode(x, y, it.boom, { safe: true }); trapsNear(x, y, it.boom); return; }
+    if (it.bang || it.emp) {
+      const r = it.bang || it.emp;
+      L.rings.push({ x, y, r: 10, life: 22, c: it.emp ? '110,220,255' : '255,220,140' });
+      flash(x, y, r * 1.6);
+      if (it.emp) { SFX.zap(); spark(x, y, '#8fe6ff', 18); } else { SFX.pop(); spark(x, y, '#ffd27a', 16); }
+      shake = Math.max(shake, 5);
+      for (const e of L.enemies) {
+        if (e.dead) continue;
+        if (Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) > r + e.w / 2) continue;
+        const machine = ['drone', 'turret', 'pylon', 'hound'].includes(e.type);
+        if (it.emp && !machine) { e.stun = Math.max(e.stun || 0, 60); continue; }
+        damageEnemy(e, it.emp ? 2 : 1, Math.sign(e.x - x) || 1);
+        if (e.type !== 'pylon') e.stun = Math.max(e.stun || 0, it.emp ? 240 : 180);
+      }
+      const B = L.boss;
+      if (B && !B.dead && B.state !== 'idle') { const c = bossCenter(B); if (Math.hypot(c.x - x, c.y - y) < r + 50) hitBoss(1); }
+      if (it.emp) L.bullets = L.bullets.filter((b) => Math.hypot(b.x - x, b.y - y) > r);
+      trapsNear(x, y, r);
+      return;
+    }
+    if (it.kind === 'flare') L.flares.push({ x, y: onEnemy ? (L.gyAt(x) ?? y) : y, life: 480 });
+    if (it.kind === 'snowball') puff(x, y, '#eef3f7', 10); else puff(x, y, it.kind === 'brick' ? '#9a4a32' : '#8a8f94', 6);
+    trapsNear(x, y, 26);
+  }
+  function updateItems() {
+    if (P.throwCd > 0) P.throwCd--;
+    if (P.throwT > 0) P.throwT--;
+    for (const e of L.enemies) { if (e.lx !== undefined) { e.mvx = lerp(e.mvx || 0, e.x - e.lx, 0.5); e.mvy = lerp(e.mvy || 0, e.y - e.ly, 0.5); } e.lx = e.x; e.ly = e.y; }
+    if (SB.pressed.has('throw') && !dialog) throwItem();
+    if (!L.itemHint && L.stats.time > 230) { L.itemHint = true; const it = stageItem(); banner(it.name, `${TAP() ? 'Tap THROW' : 'Press F or K'} to throw. ${it.hint}`, 260); }
+    L.thrown = L.thrown.filter((o) => {
+      o.vy += o.g; o.x += o.vx; o.y += o.vy; o.rot += 0.35 * Math.sign(o.vx || 1); o.life--;
+      const it = stageItem();
+      for (const e of L.enemies) {
+        if (e.dead || o.hitList.includes(e)) continue;
+        const pad = e.h < 24 ? 14 : 10;
+        if (o.x > e.x - pad && o.x < e.x + e.w + pad && o.y > e.y - pad && o.y < e.y + e.h + pad) {
+          o.hitList.push(e);
+          if (!it.boom && !it.bang && !it.emp) {
+            damageEnemy(e, it.dmg, Math.sign(o.vx) || 1);
+            if (it.freeze && !e.dead) { e.stun = Math.max(e.stun || 0, it.freeze); e.frozen = it.freeze; }
+            else if (!e.dead && e.type !== 'pylon') e.stun = Math.max(e.stun || 0, it.kind === 'flare' ? 160 : 45);
+          }
+          if (--o.pierce <= 0) { itemImpact(o, o.x, o.y, true); return false; }
+        }
+      }
+      const B = L.boss;
+      if (B && !B.dead && B.state !== 'idle' && B.state !== 'intro') {
+        const c = bossCenter(B), r = B.type === 'core' ? 44 : B.type === 'warden' ? 40 : 46;
+        if (Math.hypot(o.x - c.x, o.y - c.y) < r) { if (!it.bang && !it.emp && !it.boom) hitBoss(1); itemImpact(o, o.x, o.y, true); return false; }
+      }
+      for (const tr of L.traps) {
+        if (tr.done) continue;
+        const hitT = (tr.type === 'barrel' && Math.abs(o.x - tr.x) < 15 && o.y > tr.y - 34 && o.y < tr.y + 2)
+          || ((tr.type === 'mine' || tr.type === 'bear') && Math.abs(o.x - tr.x) < 16 && o.y > tr.y - 16 && o.y < tr.y + 4)
+          || (tr.type === 'ice' && tr.state === 'hang' && Math.abs(o.x - tr.x) < 14 && o.y > tr.ceil && o.y < tr.ceil + 52);
+        if (hitT) { itemImpact(o, o.x, o.y, false); return false; }
+      }
+      const ceil = L.ceilAt(o.x);
+      if (ceil !== null && o.y < ceil + 4) { o.y = ceil + 4; o.vy = Math.abs(o.vy) * 0.3; }
+      for (const w of L.water) if (o.x > w.x0 && o.x < w.x1 && o.y > w.y + 4) { splash(o.x, w.y); SFX.splash(); return false; }
+      if (o.vy > 0) for (const s of L.surfaces) if (!s.gone && o.x > s.x && o.x < s.x + s.w && o.y >= s.y - 3 && o.y - o.vy <= s.y + 2) { itemImpact(o, o.x, s.y - 4, false); return false; }
+      return o.life > 0 && o.y < H + 40 && o.x > 0 && o.x < L.worldW;
+    });
+    L.flares = L.flares.filter((f) => {
+      f.life--;
+      if (SB.t % 3 === 0) L.particles.push({ x: f.x + rand(-3, 3), y: f.y - 6, vx: rand(-0.6, 0.6), vy: rand(-2.2, -0.8), life: rand(14, 26), c: Math.random() < 0.5 ? '#ff6a3a' : '#ffd27a', s: rand(1.5, 3), g: -0.01 });
+      for (const e of L.enemies) if (!e.dead && ['rat', 'hound', 'wolf'].includes(e.type) && Math.abs(e.x + e.w / 2 - f.x) < 110) { e.stun = Math.max(e.stun || 0, 20); e.dir = e.x + e.w / 2 < f.x ? -1 : 1; }
+      return f.life > 0;
+    });
+  }
+  function drawItem(kind, x, y, rot = 0, s = 1) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.scale(s, s);
+    switch (kind) {
+      case 'brick': ctx.fillStyle = '#9a4a32'; ctx.fillRect(-8, -5, 16, 10); ctx.fillStyle = '#6e3322'; ctx.fillRect(-8, 1, 16, 2); ctx.fillRect(-1, -5, 2, 6); break;
+      case 'wrench':
+        ctx.fillStyle = '#a8adb3'; ctx.fillRect(-9, -2, 15, 4);
+        ctx.beginPath(); ctx.arc(8, 0, 5, 0, 7); ctx.fill(); ctx.fillStyle = '#1b1916'; ctx.fillRect(9, -2, 5, 4); break;
+      case 'flare':
+        ctx.shadowColor = '#ff5a3a'; ctx.shadowBlur = 12; ctx.fillStyle = '#d83a2a'; ctx.fillRect(-8, -2.5, 16, 5);
+        ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(9, 0, 3, 0, 7); ctx.fill(); break;
+      case 'bomb':
+        ctx.fillStyle = '#3b3f45'; ctx.beginPath(); ctx.arc(0, 0, 7, 0, 7); ctx.fill(); ctx.fillStyle = '#8a8f94'; ctx.fillRect(-3, -9, 6, 3);
+        ctx.strokeStyle = '#b0643a'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, -9); ctx.quadraticCurveTo(4, -13, 6, -11); ctx.stroke();
+        if (SB.t % 6 < 3) { ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(6, -11, 2, 0, 7); ctx.fill(); } break;
+      case 'cracker':
+        ctx.fillStyle = '#c0392b'; ctx.fillRect(-3.5, -8, 7, 16); ctx.fillStyle = '#f2e6cf'; ctx.fillRect(-3.5, -2, 7, 3);
+        ctx.strokeStyle = '#d9d2c5'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(2, -12); ctx.stroke(); break;
+      case 'snowball': ctx.fillStyle = '#f4f8fb'; ctx.beginPath(); ctx.arc(0, 0, 6.5, 0, 7); ctx.fill(); ctx.fillStyle = '#c9d8e4'; ctx.beginPath(); ctx.arc(2, 2, 3, 0, 7); ctx.fill(); break;
+      case 'emp':
+        ctx.shadowColor = '#4ad7ff'; ctx.shadowBlur = 12; ctx.fillStyle = '#2c313a'; ctx.beginPath(); ctx.ellipse(0, 0, 9, 4, 0, 0, 7); ctx.fill();
+        ctx.fillStyle = '#4ad7ff'; ctx.beginPath(); ctx.ellipse(0, -1, 4, 1.8, 0, 0, 7); ctx.fill(); break;
+      default: break;
+    }
+    ctx.restore();
+  }
+  function drawItems() {
+    for (const f of L.flares) {
+      if (!inView(f.x, 40)) continue;
+      const x = f.x - camX, a = Math.min(1, f.life / 60);
+      const g = ctx.createRadialGradient(x, f.y - 4, 2, x, f.y - 4, 60);
+      g.addColorStop(0, `rgba(255,120,70,${0.45 * a})`); g.addColorStop(1, 'rgba(255,120,70,0)');
+      ctx.fillStyle = g; ctx.fillRect(x - 60, f.y - 64, 120, 120);
+      drawItem('flare', x, f.y - 3, 0.2, 1);
+    }
+    for (const o of L.thrown) drawItem(o.kind, o.x - camX, o.y, o.kind === 'emp' ? 0 : o.rot);
   }
 
   // ---------------------------------------------------------------- allies
@@ -183,6 +375,7 @@
     stageIdx = i;
     L = buildLevel(i);
     P.hasPulse = i > 0;
+    P.items = 3;
     resetPlayer(L.checkpoint.x);
     (L.def.allies || []).forEach(addAlly);
     camX = 0; shake = 0; dialog = null; bannerObj = null;
@@ -209,8 +402,9 @@
       L.enemies = L.enemies.filter((e) => !e.fromBoss);
     }
     if (L.chase && !L.chase.done) { L.chase.active = false; L.chase.front = 0; L.boulders = []; }
-    L.bullets = []; L.bombs = []; L.waves = []; L.rocks = []; L.strikes = [];
+    L.bullets = []; L.bombs = []; L.waves = []; L.rocks = []; L.strikes = []; L.thrown = [];
     resetPlayer(c.x);
+    P.items = Math.max(P.items, 3);
     for (const a of L.allies) { a.x = c.x - 50; a.lunge = 0; }
     camX = clamp(c.x - W * 0.42, 0, L.worldW - W);
     state = 'play';
@@ -339,6 +533,7 @@
     updateEnemies();
     updateBoss();
     updateProjectiles();
+    updateItems();
     updateTraps();
     updateStrikes();
     updateChase();
@@ -887,7 +1082,7 @@
     flash(x, y, r * 2.4);
     shake = Math.max(shake, 12);
     if (!opt.quiet) SFX.explode();
-    if (Math.hypot(pcx() - x, P.y + P.h / 2 - y) < r + 10) hurt(1, x);
+    if (!opt.safe && Math.hypot(pcx() - x, P.y + P.h / 2 - y) < r + 10) hurt(1, x);
     for (const e of L.enemies) if (!e.dead && Math.hypot(e.x + e.w / 2 - x, e.y + e.h / 2 - y) < r + e.w / 2) damageEnemy(e, 2, Math.sign(e.x - x) || 1);
     const B = L.boss;
     if (B && !B.dead && B.state !== 'idle') { const c = bossCenter(B); if (Math.hypot(c.x - x, c.y - y) < r + 50) hitBoss(2); }
@@ -949,6 +1144,7 @@
           if (Math.abs(cx - tr.x) < 14 && Math.abs(feet - tr.y) < 8 && P.onGround) { tr.closed = 260; SFX.snap(); hurt(1, tr.x); P.root = 55; P.vx = 0; P.vy = 0; }
           break;
         case 'cable': {
+          if (tr.offT > 0) { tr.offT--; tr.on = false; tr.warn = tr.offT < 60 && SB.t % 10 < 5; break; }
           const c = (L.stats.time + tr.phase) % 170, on = c >= 95;
           tr.on = on; tr.warn = c >= 75 && c < 95;
           if (on && SB.t % 5 === 0 && Math.abs(tr.x - camX - W / 2) < W) SFX.zap();
@@ -1035,7 +1231,15 @@
   function updatePickups() {
     const cx = pcx(), cy = P.y + P.h / 2;
     for (const p of L.pickups) {
-      if (p.taken) continue;
+      if (p.taken) { if (p.back > 0 && --p.back <= 0) p.taken = false; continue; }
+      if (p.type === 'item') {
+        if (P.items < ITEM_MAX && Math.hypot(p.x - cx, p.y - cy) < 38) {
+          P.items = Math.min(ITEM_MAX, P.items + p.n); p.taken = true; p.back = 900; SFX.gear();
+          spark(p.x, p.y, '#ffd27a', 8);
+          if (!L.itemPicked) { L.itemPicked = true; banner(`+${p.n} ${stageItem().name.toLowerCase()}`, TAP() ? 'Tap THROW to throw' : 'F or K to throw', 110); }
+        }
+        continue;
+      }
       if (p.drop) {
         p.vy = (p.vy || 0) + 0.4; p.y += p.vy;
         for (const s of L.surfaces) if (!s.gone && p.x > s.x && p.x < s.x + s.w && p.y + 10 >= s.y && p.y + 10 - p.vy <= s.y + 1) { p.y = s.y - 10; p.vy = 0; p.drop = false; }
@@ -1154,6 +1358,13 @@
     if (p.taken || !inView(p.x, 30)) return;
     const x = p.x - camX, y = p.y + Math.sin(SB.t * 0.08 + p.x) * 3;
     ctx.save();
+    if (p.type === 'item') {
+      const k = stageItem().kind, gy = p.y + 18;
+      ctx.fillStyle = 'rgba(255,214,140,0.16)'; ctx.beginPath(); ctx.ellipse(x, gy - 2, 26, 7, 0, 0, 7); ctx.fill();
+      ctx.shadowColor = '#ffd27a'; ctx.shadowBlur = 16;
+      drawItem(k, x - 9, gy - 7, 0.15); drawItem(k, x + 9, gy - 7, -0.2); drawItem(k, x, gy - 17 + Math.sin(SB.t * 0.08 + p.x) * 2, 0.05);
+      ctx.restore(); return;
+    }
     if (p.type === 'gear') {
       ctx.translate(x, y); ctx.rotate(SB.t * 0.03);
       ctx.fillStyle = '#c9a25a';
@@ -1215,7 +1426,8 @@
       case 'pylon': SB.drawPylon(x, e.y, e.w, e.h, e.hp, e.max); break;
       default: break;
     }
-    if (e.stun > 0 && e.type !== 'pylon') SB.dizzy(x + e.w / 2, e.y - 6, 14);
+    if (e.frozen > 0 && e.stun > 0) { ctx.fillStyle = `rgba(200,235,255,${Math.min(0.55, e.stun / 120)})`; SB.roundRect(x - 3, e.y - 3, e.w + 6, e.h + 6, 6); ctx.fill(); }
+    else if (e.stun > 0 && e.type !== 'pylon') SB.dizzy(x + e.w / 2, e.y - 6, 14);
     ctx.restore();
   }
   function drawBoss() {
@@ -1299,6 +1511,7 @@
       if (s.kind === 'zap') { ctx.strokeStyle = '#6dff9c'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(s.x - camX, s.y); ctx.lineTo(s.x - camX - s.vx * 1.6, s.y - s.vy * 1.6); ctx.stroke(); }
       else { ctx.fillStyle = '#cfc6b8'; ctx.beginPath(); ctx.arc(s.x - camX, s.y, 3, 0, 7); ctx.fill(); }
     }
+    drawItems();
     for (const r of L.rocks) if (r.delay <= 0) SB.drawRock(r.x - camX, r.y, r.r);
     for (const b of L.boulders) { ctx.save(); ctx.translate(b.x - camX, b.y); ctx.rotate(b.rot); SB.drawRock(0, 0, b.r, '#dfe8f0'); ctx.restore(); }
     for (const w of L.waves) { ctx.fillStyle = 'rgba(160,140,120,0.85)'; ctx.beginPath(); ctx.moveTo(w.x - camX - 14, w.y); ctx.quadraticCurveTo(w.x - camX, w.y - 30, w.x - camX + 14, w.y); ctx.fill(); }
@@ -1341,6 +1554,8 @@
       for (const e of L.enemies) if (!e.dead && e.type === 'scav' && e.skin === 'miner') lights.push({ x: e.x + 13 - camX, y: e.y + 6, r: 90, a: 0.8 });
       for (const f of L.flashes) lights.push({ x: f.x - camX, y: f.y, r: f.r, a: f.life / f.max });
       for (const b of L.bombs) lights.push({ x: b.x - camX, y: b.y, r: 40, a: 0.8 });
+      for (const f of L.flares) lights.push({ x: f.x - camX, y: f.y - 20, r: 200 * Math.min(1, f.life / 60), a: 1 });
+      for (const o of L.thrown) if (o.kind === 'flare') lights.push({ x: o.x - camX, y: o.y, r: 90, a: 0.9 });
       for (const tr of L.traps) if (tr.type === 'mine' && !tr.done && tr.revealed) lights.push({ x: tr.x - camX, y: tr.y - 10, r: 26, a: 0.6 });
       for (const n of L.npcs) if (n.kind === 'ladder') lights.push({ x: n.x - camX, y: n.y - 120, r: 240, a: 1 });
       for (const n of L.npcs) if (n.kind === 'pip' && !n.hidden) lights.push({ x: n.x - camX, y: n.y - 14, r: 60, a: 0.8 });
@@ -1371,6 +1586,8 @@
       ctx.strokeStyle = '#ffbe78'; ctx.beginPath(); ctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + f * Math.PI * 2); ctx.stroke();
       SB.heartPath(x, y + 1, 4.5); ctx.fillStyle = f >= 1 ? '#ffbe78' : 'rgba(255,190,120,0.4)'; ctx.fill();
     }
+    // throwable items
+    { const ix = P.hasPulse ? 312 : 280; drawItem(stageItem().kind, ix, 27, -0.3, 1.1); ctx.textAlign = 'left'; ctx.font = `700 14px ${MONO}`; ctx.fillStyle = P.items ? '#e9e1d3' : 'rgba(233,225,211,0.4)'; ctx.fillText(`×${P.items}`, ix + 14, 32); }
     // allies
     L.allies.forEach((a, i) => {
       const x = 22 + i * 92, y = 46;
@@ -1619,11 +1836,11 @@
     if (state === 'paused') {
       drawOverlay('Paused', TAP() ? 'Tap to continue' : 'P or Enter to continue', TAP() ? [
         { t: 'Slide your thumb on ◀ ▶ to walk     JUMP (hold for higher)' },
-        { t: 'PULSE  heart shockwave     TALK or tap a person to talk' },
+        { t: 'PULSE  heart shockwave     THROW  throw an item     TALK or tap a person' },
         { t: `Gears ${L.stats.gears}   ·   Memories ${L.stats.memories}/3   ·   ${SB.fmtTime(L.stats.time)}`, c: '#e8c27a' },
       ] : [
         { t: '← → / A D  walk     Space  jump     X / J  heart pulse' },
-        { t: 'E  talk / search     M  sound on/off' },
+        { t: 'F / K  throw item     E  talk / search     M  sound on/off' },
         { t: `Gears ${L.stats.gears}   ·   Memories ${L.stats.memories}/3   ·   ${SB.fmtTime(L.stats.time)}`, c: '#e8c27a' },
       ]);
     } else if (state === 'gameover') {
@@ -1642,9 +1859,11 @@
   // ---------------------------------------------------------------- loop
   let last = performance.now(), acc = 0;
   const STEP = 1000 / 60;
-  let shownState = '', shownNear = false;
+  let shownState = '', shownNear = false, shownItems = -1;
+  const throwBtn = document.querySelector('[data-act=throw]');
   function syncPage() {
     if (state !== shownState) { shownState = state; document.documentElement.dataset.state = state; }
+    if (L && P.items !== shownItems) { shownItems = P.items; if (throwBtn) { throwBtn.textContent = `THROW ${P.items}`; throwBtn.classList.toggle('empty', !P.items); } }
     const near = !!(nearNPC && !dialog && state === 'play');
     if (near !== shownNear) { shownNear = near; if (near) document.documentElement.dataset.near = ''; else delete document.documentElement.dataset.near; }
   }

@@ -211,3 +211,6 @@ html:not([data-state="play"]):not([data-state="paused"]) .play-only { display: n
   .dpad { width: 136px; height: 66px; }
   .pad-row .group .big { margin-bottom: 10px; }
 }
+
+.touch button.throw { font-size: 10px; letter-spacing: 0; }
+.touch button.throw.empty { opacity: 0.45; }
