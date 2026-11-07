@@ -21,6 +21,8 @@
 
   // ---------------------------------------------------------------- progress sync
   const ids = () => SB.STAGES.map((s) => s.id);
+  // The progress table allows 'unlocked' up to 7 until migration 20261107000000 is applied; the browser still keeps stage 8 locally.
+  const DB_MAX_UNLOCKED = 7;
   const store = SB.store; // original, unwrapped
   const toInt = (v, lo, hi) => { const n = Math.floor(Number(v)); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, n)) : lo; };
   function readLocal() {
@@ -47,7 +49,7 @@
   async function push() {
     if (!user) return;
     const p = readLocal();
-    const { error } = await client.from('progress').upsert({ user_id: user.id, unlocked: p.unlocked, best: p.best, finished: p.finished });
+    const { error } = await client.from('progress').upsert({ user_id: user.id, unlocked: Math.min(p.unlocked, DB_MAX_UNLOCKED), best: p.best, finished: p.finished });
     if (error) console.warn('Could not save progress.', error.message);
   }
   async function pull() {

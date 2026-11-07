@@ -13,7 +13,7 @@
   let camX = 0, shake = 0;
   let L = null, stageIdx = 0;
   let dialog = null, bannerObj = null, overlayT = 0, slide = 0, slideT = 0, menuSel = 0, endT = 0;
-  let nearNPC = null;
+  let nearNPC = null, endParts = [];
   SB.t = 0;
   const unlocked = () => (DEV ? STAGES.length : clamp(parseInt(SB.store('sadbot.unlocked') || '1', 10) || 1, 1, STAGES.length));
 
@@ -108,6 +108,7 @@
     forest: { kind: 'cracker', name: 'Firecrackers', hint: 'The bang stuns wolves and snaps bear traps shut.', dmg: 1, bang: 130 },
     spine: { kind: 'snowball', name: 'Snowballs', hint: 'They freeze enemies and knock icicles down.', dmg: 1, freeze: 220 },
     helix: { kind: 'emp', name: 'EMP discs', hint: 'They short out machines and switch lasers off.', dmg: 2, emp: 120 },
+    signal: { kind: 'emp', name: 'Light discs', hint: 'They short out leftover machines and switch lasers off.', dmg: 2, emp: 120 },
   };
   const ITEM_MAX = 6, ITEM_G = 0.35;
   const stageItem = () => ITEMS[L.def.id] || ITEMS.ashfield;
@@ -391,7 +392,7 @@
     if (!best || L.stats.time < best) SB.store(key, String(L.stats.time));
   }
   function startEnding() {
-    state = 'ending'; endT = 0; SB.setMusicRate(1);
+    state = 'transform'; endT = 0; endParts = []; SB.setMusicRate(1);
     if (!DEV) SB.store('sadbot.finished', '1');
   }
   function respawn() {
@@ -432,7 +433,7 @@
     lineStart(lines[0]);
   }
   function lineStart(line) {
-    if (line.vo !== undefined) SB.playVO(line.vo);
+    if (line.vo !== undefined) { SB.stopVO(); SB.playVO(line.vo); }
     if (line.sfx && SFX[line.sfx]) SFX[line.sfx]();
   }
 
@@ -492,6 +493,21 @@
       case 'clear':
         overlayT++;
         if (overlayT > 60 && pr.has('advance')) { SB.stopVO(); if (stageIdx + 1 < STAGES.length) startStage(stageIdx + 1); else state = 'title'; }
+        break;
+      case 'transform':
+        endT++;
+        if (endT > 70 && endT < 300 && endT % 2 === 0) endParts.push({ x: 360 + rand(-18, 18), y: 330 + rand(-70, 20), vx: rand(-0.4, 0.4), vy: rand(-1.4, -0.4), life: 110 });
+        for (const q of endParts) { q.vx += (690 - q.x) * 0.0007; q.vy += (240 - q.y) * 0.0007; q.x += q.vx; q.y += q.vy; q.life--; }
+        endParts = endParts.filter((q) => q.life > 0);
+        if (pr.has('skip') || endT > 430) { state = 'epilogue'; slide = 0; slideT = 0; SB.playVO(EPI[0].vo); }
+        break;
+      case 'epilogue':
+        slideT++;
+        if (pr.has('skip')) beginHome();
+        else if ((slideT > 60 && pr.has('advance')) || (slideT > 420 && !SB.voActive())) {
+          slide++; slideT = 0; SB.stopVO();
+          if (slide >= EPI.length) beginHome(); else SB.playVO(EPI[slide].vo);
+        }
         break;
       case 'ending':
         endT++;
@@ -1396,6 +1412,7 @@
       case 'elephant': SB.drawElephant(x, gy, -1); break;
       case 'goat': SB.drawGoat(x, gy, -1); break;
       case 'pip': SB.drawPip(x, gy - 14 + Math.sin(SB.t * 0.05) * 2, false); ctx.fillStyle = 'rgba(109,255,156,0.6)'; if (SB.t % 40 < 4) ctx.fillRect(x + rand(-8, 8), gy - 20, 2, 2); break;
+      case 'alien': drawAlien(x, gy - 120 + Math.sin(SB.t * 0.04) * 6, 1); break;
       case 'terminal': SB.drawTerminal(x, gy, n.done); break;
       case 'ladder': {
         const top = L.ceilAt(n.x) ?? 250;
@@ -1612,7 +1629,7 @@
       ctx.textAlign = 'center'; ctx.fillStyle = '#e9e1d3'; ctx.font = `700 12px ${MONO}`; ctx.fillText(B.name + (B.type === 'core' && B.shield ? '  ·  SHIELDED' : ''), W / 2, by - 6);
     }
     if (nearNPC && !dialog) {
-      const n = nearNPC, x = n.x - camX, baseY = n.kind === 'crow' ? n.y - 40 : n.kind === 'elephant' ? n.y - 130 : n.y - 100;
+      const n = nearNPC, x = n.x - camX, baseY = n.kind === 'crow' ? n.y - 40 : n.kind === 'elephant' ? n.y - 130 : n.kind === 'alien' ? n.y - 200 : n.y - 100;
       const y = baseY + Math.sin(SB.t * 0.1) * 2;
       ctx.textAlign = 'center'; ctx.font = `700 13px ${MONO}`;
       const label = `${TAP() ? 'Tap' : 'E'} · ${n.prompt}`, w = ctx.measureText(label).width + 16;
@@ -1636,7 +1653,7 @@
     if (line) lines.push(line);
     return lines;
   }
-  const NAME_COLOR = { TOBY: '#9ec3d6', ASH: '#c9c2b6', MARA: '#e0a46a', NOTE: '#e8c27a', HINT: '#e8c27a', MEMORY: '#e8c27a', MILO: '#f08a4b', KEVIN: '#e86a5a', BISCUIT: '#d9b07a', INES: '#e0c060', SOL: '#e0a46a', PIP: '#6dff9c', 'OLD TOM': '#b9c4c8', SABLE: '#e3b57a', MATRIARCH: '#c9c2b6', SKIPPER: '#e8e2d8', ANSELM: '#d98a7a', RECORDING: '#4ad7ff', 'MS. ALVAREZ': '#d8b26a' };
+  const NAME_COLOR = { TOBY: '#9ec3d6', ASH: '#c9c2b6', MARA: '#e0a46a', NOTE: '#e8c27a', HINT: '#e8c27a', MEMORY: '#e8c27a', MILO: '#f08a4b', KEVIN: '#e86a5a', BISCUIT: '#d9b07a', INES: '#e0c060', SOL: '#e0a46a', PIP: '#6dff9c', 'OLD TOM': '#b9c4c8', SABLE: '#e3b57a', MATRIARCH: '#c9c2b6', SKIPPER: '#e8e2d8', ANSELM: '#d98a7a', RECORDING: '#4ad7ff', 'MS. ALVAREZ': '#d8b26a', WREN: '#e8a0b0', 'THE LISTENER': '#9ff0ff', NARRATOR: '#e8c27a', ELENA: '#e0c060', MARCO: '#9ec3d6' };
   function drawDialog() {
     if (!dialog) return;
     const line = dialog.lines[dialog.i];
@@ -1671,7 +1688,7 @@
     { img: 'city', vo: 1, lines: ['Thirteen years later, the minds his parents built were turned loose.', 'The world went quiet. There are no governments now. Only survivors.'] },
     { img: 'wake', vo: 0, lines: ['Unit SM-3-15... online.', 'Somewhere out there, Kevin is waiting.'] },
   ];
-  const MENU = { y0: 290, rh: 22 };
+  const MENU = { y0: 286, rh: 20 };
   const TAP = () => SB.touch;
   function drawTitle() {
     coverImage(SB.IMG.highway, 1.08 + Math.sin(SB.t * 0.003) * 0.03, 0, -10);
@@ -1745,43 +1762,145 @@
 
   // ---------------------------------------------------------------- ending
   const KIDS = [['kid1', 690], ['kid2', 740], ['kid3', 790]];
-  function drawEnding() {
-    const k = clamp(endT / 900, 0, 1);
-    const g = ctx.createLinearGradient(0, 0, 0, H);
-    g.addColorStop(0, SB.mix('#2a2346', '#e8a07a', k)); g.addColorStop(0.55, SB.mix('#8a5a6a', '#f6c88f', k)); g.addColorStop(1, '#f6dcae');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    const sunY = 330 - k * 90;
-    const sg = ctx.createRadialGradient(480, sunY, 6, 480, sunY, 260);
-    sg.addColorStop(0, 'rgba(255,240,200,0.95)'); sg.addColorStop(0.15, 'rgba(255,215,150,0.5)'); sg.addColorStop(1, 'rgba(255,200,140,0)');
-    ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
-    ctx.save(); ctx.translate(0, -84); // keep the cast above the dialog box
-    // the Spine, far behind
-    ctx.fillStyle = 'rgba(110,90,120,0.55)';
-    ctx.beginPath(); ctx.moveTo(0, 380); for (let x = 0; x <= W; x += 60) ctx.lineTo(x, 330 - Math.abs(Math.sin(x * 0.013)) * 90); ctx.lineTo(W, 380); ctx.fill();
-    // rooftop garden
-    ctx.fillStyle = '#3a3a44'; ctx.fillRect(0, 440, W, H);
-    ctx.fillStyle = '#5a5a66'; ctx.fillRect(0, 440, W, 6);
-    for (const px of [60, 300, 560, 880]) {
-      ctx.fillStyle = '#6a4a36'; ctx.fillRect(px - 40, 410, 80, 30);
-      ctx.fillStyle = '#4d7a3e'; for (let i = 0; i < 6; i++) { ctx.beginPath(); ctx.arc(px - 30 + i * 12, 404 - (i % 2) * 6, 10, 0, 7); ctx.fill(); }
-      ctx.fillStyle = '#e8c27a'; ctx.beginPath(); ctx.arc(px - 10, 396, 3, 0, 7); ctx.arc(px + 14, 392, 3, 0, 7); ctx.fill();
+  // ---------------------------------------------------------------- the alien (the Listener)
+  function drawAlien(x, y, a = 1) {
+    const t = SB.t, pul = 1 + Math.sin(t * 0.06) * 0.08;
+    ctx.save(); ctx.globalAlpha = a;
+    const halo = ctx.createRadialGradient(x, y, 4, x, y, 150 * pul);
+    halo.addColorStop(0, 'rgba(210,250,255,0.55)'); halo.addColorStop(0.35, 'rgba(120,225,255,0.22)'); halo.addColorStop(1, 'rgba(120,225,255,0)');
+    ctx.fillStyle = halo; ctx.fillRect(x - 160, y - 160, 320, 320);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 7; i++) { // ribbons of light trailing below
+      const off = (i - 3) * 9;
+      ctx.strokeStyle = `rgba(${150 + i * 12},230,255,0.35)`; ctx.lineWidth = 3;
+      ctx.beginPath();
+      for (let k = 0; k <= 12; k++) { const yy = y + 18 + k * 9, xx = x + off * (1 + k * 0.08) + Math.sin(t * 0.04 + k * 0.5 + i) * (4 + k * 0.8); if (k) ctx.lineTo(xx, yy); else ctx.moveTo(xx, yy); }
+      ctx.stroke();
     }
-    // Ms. Alvarez and the class
-    SB.drawHuman(860, 440, -1, 0, SB.LOOKS.alvarez, { mood: endT > 900 ? 'sad' : 'smile' });
-    KIDS.forEach(([look, x]) => SB.drawHuman(x + 40, 440, -1, 0, SB.LOOKS[look], { mood: 'smile' }));
-    // Kevin
-    const kx = 600;
-    SB.drawHuman(kx, 440, -1, 0, SB.LOOKS.kevin, { mood: dialog && dialog.i >= 9 && dialog.i <= 10 ? 'sad' : 'smile', pose: dialog && dialog.i >= 11 ? 'wave' : undefined });
-    // Toby and Milo walk in
-    const tx = Math.min(470, -40 + endT * 4), mx = Math.min(390, -110 + endT * 4);
-    const walking = tx < 470;
-    SB.drawHuman(mx, 440, 1, endT * 0.2, SB.LOOKS.milo, { moving: walking, mood: 'smile' });
-    SB.drawToby(tx, 440, 1, endT * 0.3, { moving: walking, eyeGlow: 0.6 });
+    for (let i = 0; i < 3; i++) { // slow rings
+      ctx.save(); ctx.translate(x, y); ctx.rotate(t * 0.01 * (i % 2 ? -1 : 1) + i);
+      ctx.strokeStyle = `rgba(190,245,255,${0.55 - i * 0.12})`; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, 0, 44 + i * 14, 14 + i * 5, 0, 0, 7); ctx.stroke(); ctx.restore();
+    }
+    const cg = ctx.createRadialGradient(x, y, 2, x, y, 26 * pul);
+    cg.addColorStop(0, '#ffffff'); cg.addColorStop(0.5, 'rgba(190,250,255,0.95)'); cg.addColorStop(1, 'rgba(120,225,255,0)');
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(x, y, 26 * pul, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(220,252,255,0.9)';
+    for (let i = 0; i < 6; i++) { const ang = t * 0.02 + i * 1.05, rr = 54 + (i % 3) * 14; ctx.fillRect(x + Math.cos(ang) * rr, y + Math.sin(ang) * rr * 0.35, 2.5, 2.5); }
+    ctx.restore();
+  }
+
+  // ---------------------------------------------------------------- final ending: light, backstory, home
+  const EPI = [
+    { img: 'drawing', vo: 5, lines: ['Before the world went quiet, a boy named Kevin was born', 'to two people who loved him, and had no time.'] },
+    { img: 'city', vo: 6, lines: ['Helix built a mind that learned faster than anyone could trust.', 'The day it broke free, Kevin\'s parents went down to shut it off.'] },
+    { img: 'school', vo: 7, lines: ['On the road from school, a boy turned and ran the other way,', 'so a smaller girl could live. His name was Kevin.'] },
+    { img: 'highway', vo: 8, lines: ['A rusted robot crossed a broken world to find him.', 'He found a red cap, and a silence shaped like his friend.'] },
+    { img: 'wake', vo: 9, lines: ['And at the edge of everything, something that had listened', 'to humanity for ages heard one small, loud heart.'] },
+  ];
+  function beginHome() { SB.stopVO(); dialog = null; state = 'ending'; endT = 0; }
+  function drawTransform() {
+    const T = endT, bob = Math.sin(SB.t * 0.04) * 5;
+    const g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#05080f'); g.addColorStop(0.55, '#141b33'); g.addColorStop(1, '#2a2147');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeStyle = `rgba(${i === 1 ? '120,255,190' : '110,200,255'},${0.14 + i * 0.03})`; ctx.lineWidth = 26 - i * 6;
+      ctx.beginPath(); for (let x = 0; x <= W; x += 20) ctx.lineTo(x, 90 + i * 30 + Math.sin(x * 0.006 + SB.t * 0.006 + i) * 30); ctx.stroke();
+    }
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    for (let i = 0; i < 70; i++) { const sx = (Math.sin(i * 91.7) * 43758.5453 % 1 + 1) % 1, sy = (Math.sin(i * 12.9) * 24634.6345 % 1 + 1) % 1; ctx.fillRect(sx * W, sy * 280, 1.3, 1.3); }
+    ctx.fillStyle = '#0b1020'; ctx.beginPath(); ctx.moveTo(0, 430); for (let x = 0; x <= W; x += 40) ctx.lineTo(x, 380 - Math.abs(Math.sin(x * 0.012)) * 60); ctx.lineTo(W, 430); ctx.fill();
+    ctx.fillStyle = '#0d1424'; ctx.fillRect(0, 430, W, H);
+    ctx.fillStyle = `rgba(74,215,255,${0.35 + Math.sin(SB.t * 0.05) * 0.12})`; ctx.fillRect(0, 430, W, 3);
+    drawAlien(690, 240 + bob, clamp(T / 60, 0, 1));
+    const bm = clamp((T - 50) / 60, 0, 1) * (T > 300 ? 1 : 0.6);
+    if (bm > 0) {
+      const bg = ctx.createLinearGradient(690, 240, 360, 400);
+      bg.addColorStop(0, `rgba(190,245,255,${0.5 * bm})`); bg.addColorStop(1, `rgba(190,245,255,${0.08 * bm})`);
+      ctx.fillStyle = bg; ctx.beginPath(); ctx.moveTo(680, 250); ctx.lineTo(700, 250); ctx.lineTo(420, 436); ctx.lineTo(310, 436); ctx.fill();
+    }
+    const fade = 1 - clamp((T - 90) / 180, 0, 1);
+    if (fade > 0.01) {
+      ctx.save(); ctx.globalAlpha = fade; ctx.shadowColor = '#7fe8ff'; ctx.shadowBlur = 24 * (1 - fade);
+      SB.drawToby(360, 430, 1, 0, { eyeGlow: 0.6 + (1 - fade) * 0.4 });
+      ctx.restore();
+    }
+    ctx.save(); ctx.shadowColor = '#bff4ff'; ctx.shadowBlur = 10; ctx.fillStyle = '#e8fbff';
+    for (const q of endParts) { ctx.globalAlpha = clamp(q.life / 40, 0, 1); ctx.fillRect(q.x, q.y, 3, 3); }
+    ctx.restore();
+    ctx.textAlign = 'center'; ctx.font = `italic 500 26px ${DISPLAY}`;
+    ctx.fillStyle = `rgba(217,236,245,${clamp((T - 30) / 40, 0, 1) * (T > 300 ? clamp(1 - (T - 300) / 60, 0, 1) : 1)})`;
+    ctx.fillText(T < 200 ? 'The Listener unwinds Toby into light.' : 'Back through every morning he ever had.', W / 2, H - 70);
+    if (T < 60) { ctx.fillStyle = `rgba(0,0,0,${1 - T / 60})`; ctx.fillRect(0, 0, W, H); }
+    if (T > 330) { ctx.fillStyle = `rgba(235,250,255,${clamp((T - 330) / 90, 0, 1)})`; ctx.fillRect(0, 0, W, H); }
+  }
+  function drawEpilogue() {
+    const s = EPI[Math.min(slide, EPI.length - 1)], k = slideT / 500;
+    ctx.fillStyle = '#05080f'; ctx.fillRect(0, 0, W, H);
+    coverImage(SB.IMG[s.img], 1.05 + k * 0.08, 0, 0, clamp(slideT / 40, 0, 1));
+    ctx.fillStyle = 'rgba(70,170,220,0.12)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(200,245,255,0.35)'; // streaks of light, as if falling back through time
+    for (let i = 0; i < 18; i++) { const sp = 3 + (i % 5) * 1.2, x = W - ((SB.t * sp + i * 173) % (W + 120)); ctx.fillRect(x, 24 + (i * 53) % (H - 150), 40 + (i % 4) * 20, 1.5); }
+    const g = ctx.createLinearGradient(0, H * 0.5, 0, H);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.88)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.textAlign = 'center';
+    s.lines.forEach((tx, i) => { ctx.globalAlpha = clamp((slideT - 20 - i * 90) / 40, 0, 1); ctx.fillStyle = i === 0 ? '#e9e1d3' : '#e8c27a'; ctx.font = `italic 500 30px ${DISPLAY}`; ctx.fillText(tx, W / 2, H - 92 + i * 38); });
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = 'rgba(217,210,197,0.55)'; ctx.font = `12px ${MONO}`; ctx.textAlign = 'right';
+    ctx.fillText(TAP() ? 'tap ▸ next' : 'Space ▸ next    Esc ▸ skip', W - 20, 28);
+    ctx.textAlign = 'left'; ctx.fillText(`${slide + 1} / ${EPI.length}`, 20, 28);
+    if (slide === 0 && slideT < 60) { ctx.fillStyle = `rgba(235,250,255,${1 - slideT / 60})`; ctx.fillRect(0, 0, W, H); }
+  }
+  function drawEnding() { // a bright morning in the Reyes house, years before
+    const e = endT, ease = (v) => v * v * (3 - 2 * v);
+    ctx.save(); ctx.translate(0, -84); // keep the cast above the dialog box
+    const wg = ctx.createLinearGradient(0, 80, 0, 440);
+    wg.addColorStop(0, '#f8e8c8'); wg.addColorStop(1, '#f0d09a');
+    ctx.fillStyle = wg; ctx.fillRect(0, 0, W, 440);
+    ctx.fillStyle = 'rgba(200,150,90,0.10)'; for (let x = 0; x < W; x += 48) ctx.fillRect(x, 0, 24, 440);
+    ctx.fillStyle = '#8a6a4a'; ctx.fillRect(116, 96, 188, 168); // window
+    const sk = ctx.createLinearGradient(0, 104, 0, 256);
+    sk.addColorStop(0, '#9fd8ff'); sk.addColorStop(1, '#e6f6ff');
+    ctx.fillStyle = sk; ctx.fillRect(124, 104, 172, 152);
+    ctx.fillStyle = 'rgba(255,244,200,0.95)'; ctx.beginPath(); ctx.arc(250, 150, 22, 0, 7); ctx.fill();
+    ctx.fillStyle = '#8a6a4a'; ctx.fillRect(206, 104, 8, 152); ctx.fillRect(124, 176, 172, 8);
+    ctx.fillStyle = 'rgba(255,240,190,0.20)'; ctx.beginPath(); ctx.moveTo(124, 256); ctx.lineTo(296, 256); ctx.lineTo(560, 440); ctx.lineTo(220, 440); ctx.fill();
+    ctx.fillStyle = '#9a7048'; ctx.fillRect(700, 250, 200, 10); // shelf and toy blocks
+    [['#c0392b', 712], ['#3f7fb5', 740], ['#e8c27a', 768], ['#4d7a3e', 800]].forEach(([c, bx], i) => { ctx.fillStyle = c; ctx.fillRect(bx, 224 - (i % 2) * 8, 24, 26 + (i % 2) * 8); });
+    ctx.save(); ctx.translate(780, 150); ctx.rotate(-0.04); // the crayon drawing: a boy and a robot, holding hands
+    ctx.fillStyle = '#fffaf0'; ctx.fillRect(-52, -40, 104, 80);
+    ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(-20, -14, 7, 0, 7); ctx.moveTo(-20, -7); ctx.lineTo(-20, 14); ctx.lineTo(-27, 28); ctx.moveTo(-20, 14); ctx.lineTo(-13, 28); ctx.moveTo(-20, 2); ctx.lineTo(0, 6); ctx.stroke();
+    ctx.strokeStyle = '#3f7fb5'; ctx.strokeRect(12, -22, 16, 14);
+    ctx.beginPath(); ctx.moveTo(20, -8); ctx.lineTo(20, 14); ctx.lineTo(13, 28); ctx.moveTo(20, 14); ctx.lineTo(27, 28); ctx.moveTo(20, 2); ctx.lineTo(0, 6); ctx.stroke();
+    ctx.fillStyle = '#e0556a'; SB.heartPath(0, -24, 5); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#b98a5a'; ctx.fillRect(0, 440, W, H + 100); // floor, rug and blocks
+    ctx.fillStyle = '#a07646'; for (let x = 0; x < W; x += 120) ctx.fillRect(x, 440, 2, H);
+    ctx.fillStyle = '#c66a50'; ctx.beginPath(); ctx.ellipse(540, 462, 250, 26, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#e8b080'; ctx.lineWidth = 3; ctx.beginPath(); ctx.ellipse(540, 462, 220, 20, 0, 0, 7); ctx.stroke();
+    [['#3f7fb5', 700, 444], ['#e8c27a', 726, 450], ['#4d7a3e', 330, 452]].forEach(([c, bx, by]) => { ctx.fillStyle = c; ctx.fillRect(bx, by, 20, 20); });
+    // Toby: the digital light slips into the robot who has always been there
+    const m = ease(clamp(e / 200, 0, 1)), tx = 470;
+    const aura = ctx.createRadialGradient(tx, 392, 4, tx, 392, 120);
+    aura.addColorStop(0, `rgba(120,230,255,${0.40 - m * 0.18})`); aura.addColorStop(1, 'rgba(120,230,255,0)');
+    ctx.fillStyle = aura; ctx.fillRect(tx - 130, 270, 260, 260);
+    SB.drawToby(tx, 440, 1, 0, { eyeGlow: 0.55 + (1 - m) * 0.4 + Math.sin(SB.t * 0.08) * 0.05 });
+    if (m < 1) {
+      ctx.save(); ctx.globalAlpha = (1 - m) * 0.8; ctx.shadowColor = '#7fe8ff'; ctx.shadowBlur = 22;
+      SB.drawToby(tx - 260 * (1 - m), 440 - 40 * Math.sin(m * Math.PI), 1, e * 0.2, { moving: true, eyeGlow: 1 });
+      ctx.restore();
+    }
+    ctx.save(); ctx.translate(575, 440); ctx.scale(0.95, 0.95); // little Kevin, counting
+    SB.drawHuman(0, 0, -1, 0, SB.LOOKS.kevin, { mood: 'smile', pose: dialog && dialog.i >= 3 && dialog.i <= 7 ? 'wave' : undefined });
+    ctx.restore();
     if (dialog && dialog.i >= dialog.lines.length - 1) { // a little heart above Toby at the very end
       ctx.fillStyle = `rgba(255,150,130,${0.6 + Math.sin(SB.t * 0.1) * 0.3})`; SB.heartPath(tx, 335, 9); ctx.fill();
     }
     ctx.restore();
-    if (endT < 140) { ctx.fillStyle = `rgba(0,0,0,${1 - endT / 140})`; ctx.fillRect(0, 0, W, H); }
+    if (e < 90) { ctx.fillStyle = `rgba(0,0,0,${1 - e / 90})`; ctx.fillRect(0, 0, W, H); }
   }
   function drawCredits() {
     ctx.fillStyle = '#0f0e0d'; ctx.fillRect(0, 0, W, H);
@@ -1802,7 +1921,7 @@
     SB.drawToby(W / 2, 330, 1, 0, { eyeGlow: 0.6 });
     ctx.fillStyle = 'rgba(255,150,130,0.85)'; SB.heartPath(W / 2, 228, 8); ctx.fill();
     ctx.fillStyle = '#f0cf8a'; ctx.font = `italic 600 54px ${DISPLAY}`; ctx.fillText('The End', W / 2, 120);
-    ctx.fillStyle = '#d9d2c5'; ctx.font = `15px ${MONO}`; ctx.fillText('Toby, Kevin and Milo set out on a new journey.', W / 2, 152);
+    ctx.fillStyle = '#d9d2c5'; ctx.font = `15px ${MONO}`; ctx.fillText('Toby found his way back to Kevin, and stayed.', W / 2, 152);
     SB.CREDITS.forEach(([txt, kind], i) => {
       ctx.fillStyle = kind === 'gold' ? '#e8c27a' : kind === 'title' ? '#e9e1d3' : 'rgba(217,210,197,0.75)';
       ctx.font = kind === 'title' ? `700 15px ${MONO}` : `13px ${MONO}`;
@@ -1826,6 +1945,8 @@
       case 'title': drawTitle(); return;
       case 'intro': drawIntro(); return;
       case 'card': drawCard(); return;
+      case 'transform': drawTransform(); return;
+      case 'epilogue': drawEpilogue(); return;
       case 'ending': drawEnding(); drawDialog(); return;
       case 'credits': drawCredits(); return;
       default: break;

@@ -31,6 +31,9 @@
     campus: { sky: [['#05080f', '#10172c', '#271f40'], ['#070a14', '#141c34', '#30254a']], aurora: 1,
       far: { type: 'towers', c: ['#141a29', '#141a29'], par: 0.15, base: 430 }, mid: { type: 'servers', c: ['#0e121b', '#0e121b'], par: 0.45, base: 470 },
       ground: 'metal', water: '#10202a', musicRate: 1.04 },
+    aether: { sky: [['#04070d', '#0f1630', '#23204a'], ['#050912', '#13204a', '#2c2a63']], aurora: 1,
+      far: { type: 'peaks', c: ['#1a2342', '#162039'], par: 0.1, base: 410 }, mid: { type: 'pines', c: ['#0c1325', '#0a1020'], par: 0.4, base: 470 },
+      ground: 'glass', water: '#10202a', musicRate: 0.94 },
   };
   SB.BIOMES = BIOMES;
 
@@ -231,8 +234,8 @@
     const x = g.x - camX;
     if (x > W || x + g.w < 0) return;
     const style = L.biome.ground;
-    const fill = { asphalt: '#2a2827', rails: '#24211f', sand: '#d9a86e', dirt: '#33291f', snow: '#56595e', metal: '#22262e' }[style];
-    const top = { asphalt: '#45403b', rails: '#3a3632', sand: '#ecc58e', dirt: '#4b6b36', snow: '#eef3f7', metal: '#3c4452' }[style];
+    const fill = { asphalt: '#2a2827', rails: '#24211f', sand: '#d9a86e', dirt: '#33291f', snow: '#56595e', metal: '#22262e', glass: '#0d1526' }[style];
+    const top = { asphalt: '#45403b', rails: '#3a3632', sand: '#ecc58e', dirt: '#4b6b36', snow: '#eef3f7', metal: '#3c4452', glass: '#2a4a6a' }[style];
     ctx.fillStyle = fill; ctx.fillRect(x, g.y, g.w, H - g.y);
     ctx.fillStyle = top; ctx.fillRect(x, g.y, g.w, style === 'snow' ? 10 : 6);
     const start = Math.max(g.x, Math.floor(camX / 90) * 90), end = Math.min(g.x + g.w, camX + W + 90);
@@ -265,6 +268,12 @@
       ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 1;
       for (let wx = Math.max(g.x, Math.floor(camX / 60) * 60); wx < end; wx += 60) { ctx.beginPath(); ctx.moveTo(wx - camX, g.y + 6); ctx.lineTo(wx - camX, H); ctx.stroke(); }
       ctx.fillStyle = `rgba(74,215,255,${0.25 + Math.sin(t() * 0.05) * 0.1})`; ctx.fillRect(x, g.y + 8, g.w, 2);
+    } else if (style === 'glass') {
+      ctx.strokeStyle = 'rgba(120,220,255,0.12)'; ctx.lineWidth = 1;
+      for (let wx = Math.max(g.x, Math.floor(camX / 80) * 80); wx < end; wx += 80) { ctx.beginPath(); ctx.moveTo(wx - camX, g.y + 6); ctx.lineTo(wx - camX - 30, H); ctx.stroke(); }
+      ctx.fillStyle = `rgba(150,235,255,${0.5 + Math.sin(t() * 0.05) * 0.2})`; ctx.fillRect(x, g.y, g.w, 3);
+      ctx.fillStyle = 'rgba(180,240,255,0.55)';
+      for (let wx = start; wx < end; wx += 90) { const r = mulberry32(wx); ctx.fillRect(wx - camX + r() * 60, g.y + 20 + r() * 70, 2, 2); }
     }
     // quicksand
     for (const q of (g.quick || [])) {

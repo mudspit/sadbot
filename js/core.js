@@ -87,7 +87,8 @@
   const music = new Audio('assets/music.mp4');
   music.loop = true; music.volume = 0;
   try { music.preservesPitch = false; } catch (e) { /* older browsers */ }
-  const VO = [1, 2, 3, 4, 5].map((n) => { const a = new Audio(`assets/vo${n}.mp4`); a.preload = 'auto'; return a; });
+  const VO = [1, 2, 3, 4, 5].map((n) => { const a = new Audio(`assets/vo${n}.mp4`); a.preload = 'auto'; return a; })
+    .concat([1, 2, 3, 4, 5, 6, 7, 8].map((n) => { const a = new Audio(`assets/narr${n}.mp3`); a.preload = 'none'; return a; })); // 5-12: ending narration
   let AC = null, noiseBuf = null;
   SB.unlockAudio = () => {
     if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
